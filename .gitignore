@@ -21,6 +21,7 @@ htmlcov/
 build/
 dist/
 *.spec
+!packaging/AstraWeft.spec
 
 # IDE and editor state
 .idea/

@@ -12,6 +12,7 @@ Provider 模型参数变化频繁，GUI 需要动态表单。自定义 `type: se
 - 数据结构和验证使用 JSON Schema Draft 2020-12。
 - 字段顺序、分组、控件建议、帮助文本和高级折叠使用独立 UI Schema。
 - Domain/Application 以 JSON Schema 为事实验证；UI Schema 不能放宽数据约束。
+- Provider 字段的可见文案可使用纯文本 `x-astraweft-i18n` 扩展；它不参与验证、持久化或 checksum。
 - Core 禁止不受控远程 `$ref`，Schema 导入设置大小、深度和组合复杂度限制。
 - Provider 同步字段与用户覆盖字段分离，防止同步覆盖显示名、标签和默认参数。
 

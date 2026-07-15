@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDoubleSpinBox,
+    QLabel,
     QLineEdit,
     QPlainTextEdit,
     QSpinBox,
@@ -19,6 +20,7 @@ from pytestqt.qtbot import QtBot
 
 from astraweft.infrastructure.providers import EntryPointProviderRegistry
 from astraweft.ports.provider_plugins import PluginRecord
+from astraweft.presentation.i18n import Translator
 from astraweft.presentation.pages.providers import ProviderDialog
 from astraweft.presentation.widgets.schema_form import (
     SchemaForm,
@@ -73,6 +75,25 @@ def test_schema_form_renders_defaults_and_typed_values(qtbot: QtBot) -> None:
     delay.setValue(75)
     assert form.values()["catalog_revision"] == 2
     assert form.values()["delay_ms"] == 75
+
+
+@pytest.mark.gui
+def test_schema_form_resolves_optional_plugin_localization_extension(qtbot: QtBot) -> None:
+    descriptor = _mock_record().descriptor
+    assert descriptor is not None
+    form = SchemaForm(
+        descriptor.settings_schema,
+        descriptor.settings_ui_schema,
+        translator=Translator("en_US"),
+    )
+    qtbot.addWidget(form)
+
+    labels = {label.text() for label in form.findChildren(QLabel)}
+    assert "Failure mode" in labels
+    assert "Task mode" in labels
+    assert "Model catalog revision" in labels
+    assert "Simulated latency (ms)" in labels
+    assert not labels & {"故障模式", "任务模式", "模型目录版本", "模拟延迟 (毫秒)"}
 
 
 @pytest.mark.gui

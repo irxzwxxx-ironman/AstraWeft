@@ -789,8 +789,10 @@ class WorkflowExecutionService:
         links: tuple[ArtifactLink, ...],
     ) -> None:
         async with self._uow_factory() as uow:
-            for previous, updated in updates:
-                await uow.runs.update_node_run(updated, expected_version=previous.row_version)
+            await uow.runs.update_node_runs(
+                tuple((updated, previous.row_version) for previous, updated in updates)
+            )
+            for _previous, updated in updates:
                 uow.publish_after_commit(
                     NodeRunChanged(
                         updated.workflow_run_id,

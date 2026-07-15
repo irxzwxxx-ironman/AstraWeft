@@ -1,0 +1,65 @@
+name: Native release candidate
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*-beta.*"
+      - "v*-rc.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  UV_VERSION: "0.11.28"
+
+jobs:
+  native-release-gate:
+    name: Native release gate / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            os: macos-latest
+          - platform: windows
+            os: windows-latest
+          - platform: linux
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - name: Check out source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install locked release dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Run complete native release gate
+        run: uv run --locked python scripts/run_local_release_gate.py
+
+      - name: Upload candidate and release evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: astraweft-${{ matrix.platform }}-${{ github.sha }}
+          path: |
+            build/phase8/release-artifacts/*
+            build/phase8/wheels/*.whl
+            build/phase8/local-release-gate.json
+            build/phase8/manifest-verification.json
+            build/phase8/package-smoke.json
+            build/phase8/upgrade-smoke.json
+            build/phase8/release-evidence/*
+          if-no-files-found: error
+          retention-days: 30

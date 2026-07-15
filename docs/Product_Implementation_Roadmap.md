@@ -1,7 +1,7 @@
 # AstraWeft 产品级实施计划
 
 > 基线：Architecture v2 + 架构评审 + 详细技术设计 + ER + GUI 原型 + Provider 插件规范  
-> 当前状态：Phase 0–7 macOS 本地门禁通过（远端跨平台 CI 延后）；下一阶段为 Phase 8  
+> 当前状态：Phase 0–7 macOS 本地门禁通过；Phase 8 macOS 本地发行工程通过，签名与跨平台原生门禁开放
 > 目标：成熟、可维护、可扩展、可跨平台发布的开源桌面 AI 工具
 
 ## 1. 实施策略
@@ -381,6 +381,11 @@ AstraWeft/
 - 高风险操作有明确影响预览和恢复路径。
 
 ## Phase 8：开源 Beta 与跨平台发布
+
+> 本地进展：macOS arm64 desktop build、冷启动、`0006 → 0007` 升级/回滚、5 个 wheel、
+> CycloneDX SBOM、许可证清单、OSV 审计、manifest v2 独立复核和归档解包回验已通过；
+> 三平台完整候选门禁及证据上传工作流已定义，尚待远端原生执行。详见
+> [Phase 8 本地发行工程报告](./phase-reports/Phase_8_Local_Release_Engineering.md)。
 
 ### 目标
 

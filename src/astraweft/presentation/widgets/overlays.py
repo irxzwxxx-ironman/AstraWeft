@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from astraweft.presentation.i18n import Translator
 from astraweft.presentation.widgets.controls import Button, IconButton
 
 
@@ -19,8 +20,10 @@ class ConfirmDialog(QDialog):
         confirm_text: str,
         destructive: bool = False,
         parent: QWidget | None = None,
+        translator: Translator | None = None,
     ) -> None:
         super().__init__(parent)
+        translator = translator or Translator()
         self.setObjectName("ConfirmDialog")
         self.setWindowTitle(title)
         self.setModal(True)
@@ -35,7 +38,7 @@ class ConfirmDialog(QDialog):
         message.setWordWrap(True)
         actions = QHBoxLayout()
         actions.addStretch(1)
-        cancel = Button("取消", variant="ghost")
+        cancel = Button(translator.text("取消", "Cancel"), variant="ghost")
         confirm = Button(confirm_text, variant="danger" if destructive else "primary")
         cancel.clicked.connect(self.reject)
         confirm.clicked.connect(self.accept)
@@ -52,8 +55,14 @@ class Drawer(QFrame):
 
     closed = Signal()
 
-    def __init__(self, title: str, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        title: str,
+        parent: QWidget | None = None,
+        translator: Translator | None = None,
+    ) -> None:
         super().__init__(parent)
+        translator = translator or Translator()
         self.setObjectName("Drawer")
         self.setFixedWidth(360)
         self.setVisible(False)
@@ -63,7 +72,7 @@ class Drawer(QFrame):
         header = QHBoxLayout()
         heading = QLabel(title)
         heading.setObjectName("DrawerTitle")
-        close = IconButton("×", "关闭抽屉")
+        close = IconButton("×", translator.text("关闭抽屉", "Close drawer"))
         close.clicked.connect(self.close_drawer)
         header.addWidget(heading)
         header.addStretch(1)

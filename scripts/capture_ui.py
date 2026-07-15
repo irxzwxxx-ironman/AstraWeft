@@ -13,12 +13,14 @@ from PySide6.QtWidgets import QApplication
 from qasync import QEventLoop
 
 from astraweft.application.providers import CreateProvider, ProviderService
+from astraweft.application.workflows import CreateWorkflow
 from astraweft.bootstrap.container import build_app_context
 from astraweft.infrastructure.secrets.store import SessionSecretStore
 from astraweft.ports.provider_plugins import PluginLoadState
 from astraweft.ports.secrets import SecretValue
 from astraweft.presentation.design_system import apply_theme
 from astraweft.presentation.main_window import MainWindow
+from astraweft.presentation.pages.workflows import WorkflowPage
 
 
 def main() -> int:
@@ -26,8 +28,10 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--page", default="dashboard")
+    parser.add_argument("--language", choices=("zh_CN", "en_US"))
     parser.add_argument("--open-drawer", action="store_true")
     parser.add_argument("--seed-mock", action="store_true")
+    parser.add_argument("--workflow-editor", action="store_true")
     arguments = parser.parse_args()
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -47,9 +51,42 @@ def main() -> int:
             )
         )
         if arguments.seed_mock:
-            loop.run_until_complete(_seed_mock(context.provider_service))
-        window = MainWindow(context.presentation_status(), context.provider_service)
+            loop.run_until_complete(
+                _seed_mock(
+                    context.provider_service,
+                    english=arguments.language == "en_US",
+                )
+            )
+        app_settings = (
+            context.settings.model_copy(update={"language": arguments.language})
+            if arguments.language is not None
+            else context.settings
+        )
+        window = MainWindow(
+            context.presentation_status(),
+            context.provider_service,
+            context.task_service,
+            context.workflow_service,
+            context.workflow_execution,
+            context.comfyui_service,
+            context.maintenance_service,
+            context.query_service,
+            context.events,
+            context.settings_service,
+            system_notifications=False,
+            language=arguments.language or context.settings.language,
+            app_settings=app_settings,
+        )
         window._show_page(arguments.page)
+        if arguments.workflow_editor:
+            snapshot = loop.run_until_complete(
+                context.workflow_service.create(CreateWorkflow("Launch Content Pipeline"))
+            )
+            workflow_page = window._stack.widget(window._page_indexes["workflows"])
+            if not isinstance(workflow_page, WorkflowPage):
+                raise RuntimeError("workflow page is unavailable")
+            workflow_page._load_snapshot(snapshot)
+            workflow_page._add_transform_node()
         window.resize(1440, 900)
         window.show()
         if arguments.open_drawer:
@@ -76,7 +113,7 @@ def main() -> int:
     return result
 
 
-async def _seed_mock(service: ProviderService) -> None:
+async def _seed_mock(service: ProviderService, *, english: bool = False) -> None:
     providers = await service.list_providers()
     if providers:
         return
@@ -93,7 +130,7 @@ async def _seed_mock(service: ProviderService) -> None:
     provider = await service.create(
         CreateProvider(
             plugin_id=descriptor.plugin_id,
-            name="本地 Mock Studio",
+            name="Local Mock Studio" if english else "本地 Mock Studio",
             settings={"mode": "healthy", "catalog_revision": 1},
             credentials={"api_key": SecretValue("mock-valid-key")},
         )

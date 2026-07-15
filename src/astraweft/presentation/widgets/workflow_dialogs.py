@@ -20,6 +20,7 @@ from astraweft.application.workflows import WorkflowNodeDraft
 from astraweft.domain.comfyui import ComfyUIInstance, ComfyUITemplate
 from astraweft.domain.provider import Model, Provider
 from astraweft.domain.workflow import ports_from_schema
+from astraweft.presentation.i18n import Translator
 from astraweft.presentation.widgets.schema_form import SchemaForm, SchemaFormError
 
 
@@ -31,9 +32,11 @@ class ProviderNodeDialog(QDialog):
         providers: Sequence[Provider],
         models: Sequence[Model],
         parent: QWidget | None = None,
+        translator: Translator | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("添加 Provider 节点")
+        self._translator = translator or Translator()
+        self.setWindowTitle(self._translator.text("添加 Provider 节点", "Add Provider Node"))
         self.setModal(True)
         self.setMinimumWidth(440)
         self._providers = tuple(providers)
@@ -42,7 +45,7 @@ class ProviderNodeDialog(QDialog):
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 20)
         root.setSpacing(16)
-        title = QLabel("选择执行资源")
+        title = QLabel(self._translator.text("选择执行资源", "Select Execution Resource"))
         title.setObjectName("ContentTitle")
         root.addWidget(title)
         form = QFormLayout()
@@ -55,20 +58,25 @@ class ProviderNodeDialog(QDialog):
         self._operation.setObjectName("SelectInput")
         self._name = QLineEdit()
         self._name.setObjectName("TextInput")
-        self._name.setAccessibleName("Provider 节点名称")
-        self._name.setPlaceholderText("例如：生成分镜")
+        self._name.setAccessibleName(
+            self._translator.text("Provider 节点名称", "Provider node name")
+        )
+        self._name.setPlaceholderText(
+            self._translator.text("例如：生成分镜", "For example: Generate storyboard")
+        )
         for provider in self._providers:
             self._provider.addItem(provider.name, provider.id)
         self._provider.currentIndexChanged.connect(self._refresh_models)
         self._model.currentIndexChanged.connect(self._refresh_operations)
         form.addRow("Provider", self._provider)
-        form.addRow("模型", self._model)
-        form.addRow("操作", self._operation)
-        form.addRow("节点名称", self._name)
+        form.addRow(self._translator.text("模型", "Model"), self._model)
+        form.addRow(self._translator.text("操作", "Operation"), self._operation)
+        form.addRow(self._translator.text("节点名称", "Node name"), self._name)
         root.addLayout(form)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
         )
+        _translate_buttons(buttons, self._translator, ok=("添加", "Add"))
         buttons.accepted.connect(self._accept_checked)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
@@ -79,7 +87,12 @@ class ProviderNodeDialog(QDialog):
         model_id = self._model.currentData()
         operation = self._operation.currentData()
         if not all(isinstance(value, str) for value in (provider_id, model_id, operation)):
-            raise ValueError("Provider 节点选择不完整")
+            raise ValueError(
+                self._translator.text(
+                    "Provider 节点选择不完整",
+                    "Provider node selection is incomplete",
+                )
+            )
         name = self._name.text().strip() or self._model.currentText()
         return provider_id, model_id, operation, name
 
@@ -104,7 +117,11 @@ class ProviderNodeDialog(QDialog):
         try:
             self.selection()
         except ValueError as exc:
-            QMessageBox.warning(self, "选择不完整", str(exc))
+            QMessageBox.warning(
+                self,
+                self._translator.text("选择不完整", "Incomplete Selection"),
+                str(exc),
+            )
             return
         self.accept()
 
@@ -117,9 +134,11 @@ class ComfyUINodeDialog(QDialog):
         instances: Sequence[ComfyUIInstance],
         templates: Sequence[ComfyUITemplate],
         parent: QWidget | None = None,
+        translator: Translator | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("添加 ComfyUI 节点")
+        self._translator = translator or Translator()
+        self.setWindowTitle(self._translator.text("添加 ComfyUI 节点", "Add ComfyUI Node"))
         self.setModal(True)
         self.setMinimumWidth(460)
         self._instances = tuple(instances)
@@ -127,7 +146,7 @@ class ComfyUINodeDialog(QDialog):
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 20)
         root.setSpacing(16)
-        title = QLabel("选择 ComfyUI 模板")
+        title = QLabel(self._translator.text("选择 ComfyUI 模板", "Select ComfyUI Template"))
         title.setObjectName("ContentTitle")
         root.addWidget(title)
         form = QFormLayout()
@@ -138,20 +157,23 @@ class ComfyUINodeDialog(QDialog):
         self._template.setObjectName("SelectInput")
         self._name = QLineEdit()
         self._name.setObjectName("TextInput")
-        self._name.setAccessibleName("ComfyUI 节点名称")
-        self._name.setPlaceholderText("例如：本地渲染")
+        self._name.setAccessibleName(self._translator.text("ComfyUI 节点名称", "ComfyUI node name"))
+        self._name.setPlaceholderText(
+            self._translator.text("例如：本地渲染", "For example: Local render")
+        )
         for instance in self._instances:
             if instance.enabled:
                 self._instance.addItem(instance.name, instance.id)
         self._instance.currentIndexChanged.connect(self._refresh_templates)
         self._template.currentIndexChanged.connect(self._default_name)
         form.addRow("ComfyUI", self._instance)
-        form.addRow("API 模板", self._template)
-        form.addRow("节点名称", self._name)
+        form.addRow(self._translator.text("API 模板", "API template"), self._template)
+        form.addRow(self._translator.text("节点名称", "Node name"), self._name)
         root.addLayout(form)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
         )
+        _translate_buttons(buttons, self._translator, ok=("添加", "Add"))
         buttons.accepted.connect(self._accept_checked)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
@@ -161,7 +183,12 @@ class ComfyUINodeDialog(QDialog):
         instance_id = self._instance.currentData()
         template_id = self._template.currentData()
         if not isinstance(instance_id, str) or not isinstance(template_id, str):
-            raise ValueError("请先配置 ComfyUI 并导入 API 模板")
+            raise ValueError(
+                self._translator.text(
+                    "请先配置 ComfyUI 并导入 API 模板",
+                    "Configure ComfyUI and import an API template first",
+                )
+            )
         name = self._name.text().strip() or self._template.currentText()
         return instance_id, template_id, name
 
@@ -181,7 +208,11 @@ class ComfyUINodeDialog(QDialog):
         try:
             self.selection()
         except ValueError as exc:
-            QMessageBox.warning(self, "选择不完整", str(exc))
+            QMessageBox.warning(
+                self,
+                self._translator.text("选择不完整", "Incomplete Selection"),
+                str(exc),
+            )
             return
         self.accept()
 
@@ -193,9 +224,11 @@ class ConnectionDialog(QDialog):
         self,
         nodes: Sequence[WorkflowNodeDraft],
         parent: QWidget | None = None,
+        translator: Translator | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("连接节点")
+        self._translator = translator or Translator()
+        self.setWindowTitle(self._translator.text("连接节点", "Connect Nodes"))
         self.setModal(True)
         self.setMinimumWidth(440)
         self._nodes = tuple(nodes)
@@ -214,14 +247,15 @@ class ConnectionDialog(QDialog):
             self._target.addItem(node.name, node.node_key)
         self._source.currentIndexChanged.connect(self._refresh_ports)
         self._target.currentIndexChanged.connect(self._refresh_ports)
-        form.addRow("源节点", self._source)
-        form.addRow("输出端口", self._source_port)
-        form.addRow("目标节点", self._target)
-        form.addRow("输入端口", self._target_port)
+        form.addRow(self._translator.text("源节点", "Source node"), self._source)
+        form.addRow(self._translator.text("输出端口", "Output port"), self._source_port)
+        form.addRow(self._translator.text("目标节点", "Target node"), self._target)
+        form.addRow(self._translator.text("输入端口", "Input port"), self._target_port)
         root.addLayout(form)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
         )
+        _translate_buttons(buttons, self._translator, ok=("连接", "Connect"))
         buttons.accepted.connect(self._accept_checked)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
@@ -235,10 +269,14 @@ class ConnectionDialog(QDialog):
             self._target_port.currentData(),
         )
         if not all(isinstance(value, str) and value for value in values):
-            raise ValueError("连接端口选择不完整")
+            raise ValueError(
+                self._translator.text("连接端口选择不完整", "Port selection is incomplete")
+            )
         source, source_port, target, target_port = values
         if source == target:
-            raise ValueError("节点不能连接到自身")
+            raise ValueError(
+                self._translator.text("节点不能连接到自身", "A node cannot connect to itself")
+            )
         return source, source_port, target, target_port
 
     def _refresh_ports(self) -> None:
@@ -260,7 +298,11 @@ class ConnectionDialog(QDialog):
         try:
             self.selection()
         except ValueError as exc:
-            QMessageBox.warning(self, "无法连接", str(exc))
+            QMessageBox.warning(
+                self,
+                self._translator.text("无法连接", "Unable to Connect"),
+                str(exc),
+            )
             return
         self.accept()
 
@@ -272,25 +314,32 @@ class WorkflowRunDialog(QDialog):
         self,
         schema: Mapping[str, object],
         parent: QWidget | None = None,
+        translator: Translator | None = None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle("运行工作流")
+        self._translator = translator or Translator()
+        self.setWindowTitle(self._translator.text("运行工作流", "Run Workflow"))
         self.setModal(True)
         self.setMinimumWidth(500)
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 20)
-        title = QLabel("本次运行输入")
+        title = QLabel(self._translator.text("本次运行输入", "Run Inputs"))
         title.setObjectName("ContentTitle")
-        subtitle = QLabel("输入会随运行记录保存，用于复现与审计。")
+        subtitle = QLabel(
+            self._translator.text(
+                "输入会随运行记录保存，用于复现与审计。",
+                "Inputs are saved with the run record for reproducibility and audit.",
+            )
+        )
         subtitle.setObjectName("BodyText")
         root.addWidget(title)
         root.addWidget(subtitle)
-        self._form = SchemaForm(schema)
+        self._form = SchemaForm(schema, translator=self._translator)
         root.addWidget(self._form)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
         )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("开始运行")
+        _translate_buttons(buttons, self._translator, ok=("开始运行", "Start run"))
         buttons.accepted.connect(self._accept_checked)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
@@ -302,6 +351,24 @@ class WorkflowRunDialog(QDialog):
         try:
             self.values()
         except SchemaFormError as exc:
-            QMessageBox.warning(self, "输入无效", str(exc))
+            QMessageBox.warning(
+                self,
+                self._translator.text("输入无效", "Invalid Input"),
+                str(exc),
+            )
             return
         self.accept()
+
+
+def _translate_buttons(
+    buttons: QDialogButtonBox,
+    translator: Translator,
+    *,
+    ok: tuple[str, str],
+) -> None:
+    accept = buttons.button(QDialogButtonBox.StandardButton.Ok)
+    cancel = buttons.button(QDialogButtonBox.StandardButton.Cancel)
+    if accept is not None:
+        accept.setText(translator.text(*ok))
+    if cancel is not None:
+        cancel.setText(translator.text("取消", "Cancel"))

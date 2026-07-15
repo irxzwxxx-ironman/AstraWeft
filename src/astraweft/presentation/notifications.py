@@ -30,7 +30,7 @@ class DesktopNotificationController:
         style = QApplication.style()
         if style is not None:
             self._tray.setIcon(style.standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
-        self._tray.setToolTip("AstraWeft · 星纬")
+        self._tray.setToolTip(self._translator.text("AstraWeft · 星纬", "AstraWeft"))
         self._available = (
             QSystemTrayIcon.isSystemTrayAvailable() if available is None else available
         )

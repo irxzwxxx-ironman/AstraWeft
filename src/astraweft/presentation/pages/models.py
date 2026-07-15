@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from astraweft.application.providers import ProviderService
 from astraweft.domain.provider import Model, Provider
 from astraweft.presentation.design_system import fixed_width_font
+from astraweft.presentation.i18n import Translator
 from astraweft.presentation.widgets.controls import Button, SelectInput
 from astraweft.presentation.widgets.data_views import DataTable, TabView
 from astraweft.presentation.widgets.feedback import EmptyState
@@ -32,10 +33,11 @@ from astraweft.presentation.widgets.feedback import EmptyState
 class ModelsPage(QWidget):
     """Read-oriented catalog showing availability separately from user enablement."""
 
-    def __init__(self, service: ProviderService) -> None:
+    def __init__(self, service: ProviderService, translator: Translator | None = None) -> None:
         super().__init__()
         self.setObjectName("ModelsPage")
         self._service = service
+        self._translator = translator or Translator()
         self._tasks: set[asyncio.Task[Any]] = set()
         self._models: tuple[Model, ...] = ()
         self._providers: tuple[Provider, ...] = ()
@@ -46,28 +48,35 @@ class ModelsPage(QWidget):
         root.setSpacing(18)
         header = QHBoxLayout()
         titles = QVBoxLayout()
-        title = QLabel("模型目录")
+        title = QLabel(self._translator.text("模型目录", "Model Catalog"))
         title.setObjectName("ContentTitle")
-        subtitle = QLabel("能力、参数 Schema、价格和可用状态均来自 Provider 同步")
+        subtitle = QLabel(
+            self._translator.text(
+                "能力、参数 Schema、价格和可用状态均来自 Provider 同步",
+                "Capabilities, parameter schemas, pricing, and availability are synced from providers",
+            )
+        )
         subtitle.setObjectName("BodyText")
         titles.addWidget(title)
         titles.addWidget(subtitle)
         header.addLayout(titles)
         header.addStretch(1)
-        self._filter = SelectInput("按 Provider 筛选")
+        self._filter = SelectInput(self._translator.text("按 Provider 筛选", "Filter by provider"))
         self._filter.setMinimumWidth(210)
         self._filter.currentIndexChanged.connect(lambda _index: self._render())
-        refresh = Button("刷新", variant="ghost")
+        refresh = Button(self._translator.text("刷新", "Refresh"), variant="ghost")
         refresh.clicked.connect(self.request_refresh)
         header.addWidget(self._filter)
         header.addWidget(refresh)
         root.addLayout(header)
 
-        self._summary = QLabel("等待模型同步")
+        self._summary = QLabel(self._translator.text("等待模型同步", "Waiting for model sync"))
         self._summary.setObjectName("CatalogSummary")
         root.addWidget(self._summary)
 
-        self._table = DataTable("Provider 模型目录")
+        self._table = DataTable(
+            self._translator.text("Provider 模型目录", "Provider model catalog")
+        )
         self._table.clicked.connect(lambda index: self._show_detail(index.row()))
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter.setObjectName("ModelCatalogSplitter")
@@ -79,8 +88,11 @@ class ModelsPage(QWidget):
         root.addWidget(self._splitter, 1)
         self._empty = EmptyState(
             "◉",
-            "模型目录为空",
-            "先在 Provider 页面测试连接并同步模型。",
+            self._translator.text("模型目录为空", "The model catalog is empty"),
+            self._translator.text(
+                "先在 Provider 页面测试连接并同步模型。",
+                "Test a connection and sync models from the Providers page first.",
+            ),
         )
         self._empty.hide()
         root.addWidget(self._empty, 1)
@@ -95,12 +107,14 @@ class ModelsPage(QWidget):
             self._models = await self._service.list_models()
         except Exception:
             self._logger.exception("model_catalog_load_failed")
-            self._summary.setText("模型目录读取失败")
+            self._summary.setText(
+                self._translator.text("模型目录读取失败", "Unable to load the model catalog")
+            )
             return
         selected = self._filter.currentData()
         self._filter.blockSignals(True)
         self._filter.clear()
-        self._filter.addItem("全部 Provider", userData=None)
+        self._filter.addItem(self._translator.text("全部 Provider", "All providers"), userData=None)
         for provider in self._providers:
             self._filter.addItem(provider.name, userData=provider.id)
         for index in range(self._filter.count()):
@@ -121,19 +135,39 @@ class ModelsPage(QWidget):
         self._empty.setVisible(not filtered)
         available = sum(model.available and model.enabled for model in filtered)
         unavailable = sum(not model.available for model in filtered)
-        self._summary.setText(
-            f"{len(filtered)} 个模型  ·  {available} 个已启用且可用"
-            + (f"  ·  {unavailable} 个远端已下线" if unavailable else "")
+        summary = self._translator.text(
+            "{total} 个模型  ·  {available} 个已启用且可用",
+            "{total} models  ·  {available} enabled and available",
+            total=self._translator.integer(len(filtered)),
+            available=self._translator.integer(available),
         )
+        if unavailable:
+            summary += self._translator.text(
+                "  ·  {count} 个远端已下线",
+                "  ·  {count} unavailable remotely",
+                count=self._translator.integer(unavailable),
+            )
+        self._summary.setText(summary)
         provider_names = {provider.id: provider.name for provider in self._providers}
         table = QStandardItemModel(0, 6, self)
         table.setHorizontalHeaderLabels(
-            ["模型", "Provider", "模态", "操作能力", "状态", "最近同步"]
+            [
+                self._translator.text("模型", "Model"),
+                "Provider",
+                self._translator.text("模态", "Modality"),
+                self._translator.text("操作能力", "Operations"),
+                self._translator.text("状态", "Status"),
+                self._translator.text("最近同步", "Last synced"),
+            ]
         )
         for model in filtered:
-            status = "可用" if model.available else "远端下线"
+            status = (
+                self._translator.text("可用", "Available")
+                if model.available
+                else self._translator.text("远端下线", "Unavailable remotely")
+            )
             if model.available and not model.enabled:
-                status = "已停用"
+                status = self._translator.text("已停用", "Disabled")
             values = (
                 model.display_name,
                 provider_names.get(model.provider_id, model.provider_id),
@@ -171,7 +205,7 @@ class ModelsPage(QWidget):
         layout.setSpacing(10)
         eyebrow = QLabel("MODEL DETAIL")
         eyebrow.setObjectName("HeroEyebrow")
-        self._detail_title = QLabel("选择一个模型")
+        self._detail_title = QLabel(self._translator.text("选择一个模型", "Select a model"))
         self._detail_title.setObjectName("CardTitle")
         self._detail_meta = QLabel()
         self._detail_meta.setObjectName("MutedText")
@@ -184,16 +218,22 @@ class ModelsPage(QWidget):
         layout.addWidget(self._detail_meta)
         layout.addWidget(self._detail_operations)
 
-        tabs = TabView("模型 Schema 与价格详情")
+        tabs = TabView(self._translator.text("模型 Schema 与价格详情", "Model schemas and pricing"))
         tabs.tabBar().setUsesScrollButtons(False)
-        self._parameter_schema = _read_only_json("模型参数 Schema")
-        self._output_schema = _read_only_json("模型输出 Schema")
-        self._capabilities = _read_only_json("模型能力")
-        self._pricing = _read_only_json("模型定价")
-        tabs.addTab(self._parameter_schema, "参数")
-        tabs.addTab(self._output_schema, "输出")
-        tabs.addTab(self._capabilities, "能力")
-        tabs.addTab(self._pricing, "价格")
+        self._parameter_schema = _read_only_json(
+            self._translator.text("模型参数 Schema", "Model parameter schema")
+        )
+        self._output_schema = _read_only_json(
+            self._translator.text("模型输出 Schema", "Model output schema")
+        )
+        self._capabilities = _read_only_json(
+            self._translator.text("模型能力", "Model capabilities")
+        )
+        self._pricing = _read_only_json(self._translator.text("模型定价", "Model pricing"))
+        tabs.addTab(self._parameter_schema, self._translator.text("参数", "Parameters"))
+        tabs.addTab(self._output_schema, self._translator.text("输出", "Output"))
+        tabs.addTab(self._capabilities, self._translator.text("能力", "Capabilities"))
+        tabs.addTab(self._pricing, self._translator.text("价格", "Pricing"))
         layout.addWidget(tabs, 1)
         return panel
 
@@ -205,13 +245,24 @@ class ModelsPage(QWidget):
         model = next((item for item in self._models if item.id == model_id), None)
         if model is None:
             return
-        availability = "可用" if model.available else "远端已下线"
-        user_state = "用户已启用" if model.enabled else "用户已停用"
+        availability = (
+            self._translator.text("可用", "Available")
+            if model.available
+            else self._translator.text("远端已下线", "Unavailable remotely")
+        )
+        user_state = (
+            self._translator.text("用户已启用", "Enabled by user")
+            if model.enabled
+            else self._translator.text("用户已停用", "Disabled by user")
+        )
         self._detail_title.setText(model.display_name)
         self._detail_meta.setText(
             f"{model.remote_model_id}  ·  {model.modality}  ·  {availability}  ·  {user_state}"
         )
-        self._detail_operations.setText("操作能力  " + "  ·  ".join(sorted(model.operations)))
+        self._detail_operations.setText(
+            self._translator.text("操作能力  ", "Operations  ")
+            + "  ·  ".join(sorted(model.operations))
+        )
         self._parameter_schema.setPlainText(_json_text(model.parameter_schema))
         self._output_schema.setPlainText(_json_text(model.output_schema))
         self._capabilities.setPlainText(_json_text(model.capabilities))

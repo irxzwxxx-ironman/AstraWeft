@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from astraweft.ports.secrets import SecretValue
+from astraweft.presentation.i18n import Translator
 from astraweft.presentation.widgets.controls import TextInput
 
 
@@ -38,12 +39,14 @@ class SchemaForm(QWidget):
         *,
         initial: Mapping[str, object] | None = None,
         secret_mode: bool = False,
+        translator: Translator | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("SchemaForm")
         self._schema = schema
         self._ui_schema = ui_schema or {}
         self._secret_mode = secret_mode
+        self._translator = translator or Translator()
         self._fields: dict[str, QWidget] = {}
         self._required = _string_set(schema.get("required", ()))
 
@@ -59,19 +62,37 @@ class SchemaForm(QWidget):
 
         properties = schema.get("properties", {})
         if not isinstance(properties, Mapping):
-            raise SchemaFormError("Schema properties 必须是对象")
+            raise SchemaFormError(
+                self._translator.text(
+                    "Schema properties 必须是对象", "Schema properties must be an object"
+                )
+            )
         for name in _field_order(properties, self._ui_schema):
             field_schema = properties[name]
             if not isinstance(name, str) or not isinstance(field_schema, Mapping):
-                raise SchemaFormError("Schema 字段定义无效")
+                raise SchemaFormError(
+                    self._translator.text(
+                        "Schema 字段定义无效", "Schema field definition is invalid"
+                    )
+                )
             field = self._build_field(name, field_schema)
             self._fields[name] = field
-            title = field_schema.get("title", name)
+            title = _localized_keyword(
+                field_schema,
+                "title",
+                self._translator,
+                fallback=name,
+            )
             label = QLabel(f"{title}{' *' if name in self._required else ''}")
             label.setObjectName("FormLabel")
             form.addRow(label, field)
-            description = field_schema.get("description")
-            if isinstance(description, str) and description:
+            description = _localized_keyword(
+                field_schema,
+                "description",
+                self._translator,
+                fallback="",
+            )
+            if description:
                 hint = QLabel(description)
                 hint.setObjectName("FormHint")
                 hint.setWordWrap(True)
@@ -83,7 +104,7 @@ class SchemaForm(QWidget):
     def values(self, *, validate: bool = True) -> dict[str, object]:
         output: dict[str, object] = {}
         for name, field in self._fields.items():
-            value = _field_value(field)
+            value = _field_value(field, self._translator)
             if isinstance(value, str) and not value and name not in self._required:
                 continue
             output[name] = value
@@ -94,8 +115,15 @@ class SchemaForm(QWidget):
             )
             if error is not None:
                 if self._secret_mode:
-                    raise SchemaFormError("凭据字段不完整或格式不正确")
-                path = ".".join(str(part) for part in error.absolute_path) or "设置"
+                    raise SchemaFormError(
+                        self._translator.text(
+                            "凭据字段不完整或格式不正确",
+                            "Credential fields are incomplete or incorrectly formatted",
+                        )
+                    )
+                path = ".".join(str(part) for part in error.absolute_path) or self._translator.text(
+                    "设置", "Settings"
+                )
                 raise SchemaFormError(f"{path}：{error.message}")
         return output
 
@@ -110,7 +138,11 @@ class SchemaForm(QWidget):
         secrets: dict[str, SecretValue] = {}
         for name, value in raw.items():
             if not isinstance(value, str):
-                raise SchemaFormError("凭据字段必须是字符串")
+                raise SchemaFormError(
+                    self._translator.text(
+                        "凭据字段必须是字符串", "Credential fields must contain strings"
+                    )
+                )
             secrets[name] = SecretValue(value)
         return secrets
 
@@ -137,7 +169,7 @@ class SchemaForm(QWidget):
 
         value_type = schema.get("type", "string")
         if value_type == "boolean":
-            checkbox = QCheckBox("启用")
+            checkbox = QCheckBox(self._translator.text("启用", "Enabled"))
             checkbox.setObjectName("SchemaCheckBox")
             checkbox.setAccessibleName(name)
             checkbox.setChecked(bool(schema.get("default", False)))
@@ -163,7 +195,13 @@ class SchemaForm(QWidget):
             spin_float.setValue(_number(schema.get("default"), 0.0))
             return spin_float
         if value_type != "string":
-            raise SchemaFormError(f"暂不支持的 Schema 类型：{value_type}")
+            raise SchemaFormError(
+                self._translator.text(
+                    "暂不支持的 Schema 类型：{value_type}",
+                    "Unsupported schema type: {value_type}",
+                    value_type=value_type,
+                )
+            )
 
         ui_options = self._ui_schema.get(name, {})
         widget_name = ui_options.get("ui:widget") if isinstance(ui_options, Mapping) else None
@@ -183,7 +221,12 @@ class SchemaForm(QWidget):
         if self._secret_mode or schema.get("x-astraweft-secret") is True:
             line.setEchoMode(QLineEdit.EchoMode.Password)
             line.setClearButtonEnabled(False)
-            line.setPlaceholderText("输入后将保存到系统密钥环")
+            line.setPlaceholderText(
+                self._translator.text(
+                    "输入后将保存到系统密钥环",
+                    "The value will be saved to the system credential store",
+                )
+            )
         return line
 
 
@@ -199,7 +242,27 @@ def _field_order(
     return tuple(ordered)
 
 
-def _field_value(field: QWidget) -> object:
+def _localized_keyword(
+    schema: Mapping[str, object],
+    keyword: str,
+    translator: Translator,
+    *,
+    fallback: str,
+) -> str:
+    """Resolve optional plugin-owned schema copy without changing JSON Schema semantics."""
+
+    catalog = schema.get("x-astraweft-i18n")
+    if isinstance(catalog, Mapping):
+        localized = catalog.get(translator.language)
+        if isinstance(localized, Mapping):
+            value = localized.get(keyword)
+            if isinstance(value, str) and value:
+                return value
+    value = schema.get(keyword)
+    return value if isinstance(value, str) and value else fallback
+
+
+def _field_value(field: QWidget, translator: Translator | None = None) -> object:
     if isinstance(field, QComboBox):
         return field.currentData()
     if isinstance(field, QCheckBox):
@@ -212,7 +275,8 @@ def _field_value(field: QWidget) -> object:
         return field.toPlainText()
     if isinstance(field, QLineEdit):
         return field.text()
-    raise SchemaFormError("未知表单控件")
+    translator = translator or Translator()
+    raise SchemaFormError(translator.text("未知表单控件", "Unknown form control"))
 
 
 def _set_field_value(field: QWidget, value: object) -> None:

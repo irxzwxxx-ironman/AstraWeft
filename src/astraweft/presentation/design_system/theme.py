@@ -270,6 +270,11 @@ def _stylesheet() -> str:
         border-color: {Colors.BORDER};
         color: {Colors.TEXT_DIM};
     }}
+    QPushButton#GhostButton:disabled, QPushButton#DangerButton:disabled {{
+        background-color: {Colors.SURFACE};
+        border-color: {Colors.BORDER};
+        color: {Colors.TEXT_DIM};
+    }}
     QLabel#Avatar {{
         background-color: {Colors.ELEVATED};
         border: 1px solid {Colors.BORDER_STRONG};
@@ -303,7 +308,7 @@ def _stylesheet() -> str:
         color: {Colors.TEXT_MUTED};
         font-size: 12px;
     }}
-    QFrame#MetricCard, QFrame#SectionCard {{
+    QFrame#MetricCard, QFrame#SectionCard, QFrame#SurfaceCard {{
         background-color: {Colors.SURFACE};
         border: 1px solid {Colors.BORDER};
         border-radius: 14px;
@@ -559,21 +564,22 @@ def _stylesheet() -> str:
         background-color: transparent;
         width: 10px;
     }}
-    QCheckBox#SchemaCheckBox {{
+    QCheckBox {{
         color: {Colors.TEXT_MUTED};
         spacing: 8px;
     }}
-    QCheckBox#SchemaCheckBox::indicator {{
+    QCheckBox::indicator {{
         width: 17px;
         height: 17px;
         border: 1px solid {Colors.BORDER_STRONG};
         border-radius: 5px;
         background-color: {Colors.SURFACE_ALT};
     }}
-    QCheckBox#SchemaCheckBox::indicator:checked {{
+    QCheckBox::indicator:checked {{
         background-color: {Colors.PRIMARY};
         border-color: {Colors.PRIMARY_BRIGHT};
     }}
+    QCheckBox:focus::indicator {{ border-color: {Colors.CYAN}; }}
     QDialogButtonBox QPushButton {{
         min-height: 34px;
         min-width: 82px;
@@ -611,6 +617,19 @@ def _stylesheet() -> str:
     }}
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
         height: 0;
+    }}
+    QScrollBar:horizontal {{
+        background: transparent;
+        height: 8px;
+        margin: 1px 4px;
+    }}
+    QScrollBar::handle:horizontal {{
+        background: {Colors.BORDER_STRONG};
+        min-width: 32px;
+        border-radius: 3px;
+    }}
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+        width: 0;
     }}
     QToolTip {{
         background-color: {Colors.ELEVATED};

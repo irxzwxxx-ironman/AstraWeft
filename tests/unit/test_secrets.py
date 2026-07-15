@@ -9,6 +9,7 @@ from keyring.errors import KeyringError, PasswordDeleteError
 
 from astraweft.infrastructure.secrets.store import (
     KeyringSecretStore,
+    ResilientSecretStore,
     SessionSecretStore,
     create_secret_store,
 )
@@ -106,7 +107,9 @@ def test_factory_uses_persistent_backend(monkeypatch: pytest.MonkeyPatch) -> Non
     backend = type("Backend", (), {"priority": 5})()
     monkeypatch.setattr("keyring.get_keyring", lambda: backend)
 
-    assert isinstance(create_secret_store(), KeyringSecretStore)
+    store = create_secret_store()
+    assert isinstance(store, ResilientSecretStore)
+    assert store.persistent is True
 
 
 def test_factory_handles_backend_failure(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -116,3 +119,78 @@ def test_factory_handles_backend_failure(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr("keyring.get_keyring", fail)
 
     assert isinstance(create_secret_store(), SessionSecretStore)
+
+
+class FailingSecretStore(SessionSecretStore):
+    @property
+    def persistent(self) -> bool:
+        return True
+
+    async def set(self, credential_ref: str, field_name: str, value: SecretValue) -> None:
+        raise SecretStoreError("set failed")
+
+    async def get(self, credential_ref: str, field_name: str) -> SecretValue:
+        raise SecretStoreError("get failed")
+
+    async def delete(self, credential_ref: str, field_name: str) -> None:
+        raise SecretStoreError("delete failed")
+
+
+@pytest.mark.asyncio
+async def test_resilient_store_degrades_on_write_without_persisting_plaintext(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    fallback = SessionSecretStore()
+    store = ResilientSecretStore(FailingSecretStore(), fallback)
+    before = store.persistent
+
+    await store.set("provider", "api_key", SecretValue("session-only"))
+
+    after = store.persistent
+    assert (before, after) == (True, False)
+    assert (await store.get("provider", "api_key")).reveal() == "session-only"
+    assert "keyring_unavailable_session_fallback" in caplog.text
+    assert "session-only" not in caplog.text
+
+    with pytest.raises(SecretStoreError, match="unable to confirm credential deletion"):
+        await store.delete("provider", "api_key")
+    with pytest.raises(SecretNotFoundError):
+        await store.get("provider", "api_key")
+
+
+@pytest.mark.asyncio
+async def test_resilient_store_get_failure_switches_to_empty_session() -> None:
+    store = ResilientSecretStore(FailingSecretStore())
+
+    with pytest.raises(SecretNotFoundError):
+        await store.get("provider", "api_key")
+
+    assert store.persistent is False
+
+
+@pytest.mark.asyncio
+async def test_resilient_store_missing_value_does_not_degrade() -> None:
+    primary = KeyringSecretStore()
+    store = ResilientSecretStore(primary)
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr("keyring.get_password", lambda *_args: None)
+        with pytest.raises(SecretNotFoundError):
+            await store.get("provider", "api_key")
+
+    assert store.persistent is True
+
+
+@pytest.mark.asyncio
+async def test_resilient_store_delete_failure_is_reported_and_degrades() -> None:
+    store = ResilientSecretStore(FailingSecretStore())
+
+    with pytest.raises(SecretStoreError, match="delete failed"):
+        await store.delete("provider", "api_key")
+
+    assert store.persistent is False
+
+
+def test_resilient_store_rejects_persistent_fallback() -> None:
+    with pytest.raises(ValueError, match="non-persistent"):
+        ResilientSecretStore(KeyringSecretStore(), KeyringSecretStore())

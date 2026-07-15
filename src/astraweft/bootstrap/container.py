@@ -61,6 +61,7 @@ async def build_app_context(
     secret_store_override: SecretStore | None = None,
     http_client_override: CoreHttpClient | None = None,
     comfyui_client_override: ComfyUIClient | None = None,
+    gateway_port_override: int | None = None,
 ) -> AppContext:
     """Create and verify local resources before the main window is shown."""
     paths = resolve_app_paths(override_root)
@@ -193,6 +194,7 @@ async def build_app_context(
             providers=provider_service,
             secrets_store=secret_store,
             artifact_root=paths.artifact_dir,
+            port=17493 if gateway_port_override is None else gateway_port_override,
         )
         workflow_uow_factory = SQLiteWorkflowUnitOfWorkFactory(database.sessions, events)
         workflow_service = WorkflowService(

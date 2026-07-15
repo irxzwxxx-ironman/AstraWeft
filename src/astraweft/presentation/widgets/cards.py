@@ -90,14 +90,22 @@ class HealthRow(QFrame):
         layout.setContentsMargins(12, 0, 12, 0)
         layout.setSpacing(8)
 
-        dot = QLabel("●")
-        dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        dot.setStyleSheet(f"color: {color}; font-size: 8px; background: transparent;")
+        self._dot = QLabel("●")
+        self._dot.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._set_dot_color(color)
         name_widget = QLabel(name)
         name_widget.setObjectName("HealthName")
-        value_widget = QLabel(value)
-        value_widget.setObjectName("HealthValue")
-        layout.addWidget(dot)
+        self._value_widget = QLabel(value)
+        self._value_widget.setObjectName("HealthValue")
+        layout.addWidget(self._dot)
         layout.addWidget(name_widget)
         layout.addStretch(1)
-        layout.addWidget(value_widget)
+        layout.addWidget(self._value_widget)
+
+    def set_status(self, value: str, color: str) -> None:
+        self._value_widget.setText(value)
+        self.setAccessibleName(value)
+        self._set_dot_color(color)
+
+    def _set_dot_color(self, color: str) -> None:
+        self._dot.setStyleSheet(f"color: {color}; font-size: 8px; background: transparent;")

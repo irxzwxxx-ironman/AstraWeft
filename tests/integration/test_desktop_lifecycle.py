@@ -54,7 +54,7 @@ def test_second_desktop_process_returns_without_opening_database_concurrently(
     environment = {**os.environ, "QT_QPA_PLATFORM": "offscreen"}
     base_command = [sys.executable, "-m", "astraweft", "--data-dir", str(tmp_path)]
     primary = subprocess.Popen(
-        [*base_command, "--quit-after-ms", "800"],
+        [*base_command, "--quit-after-ms", "5000"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -78,7 +78,7 @@ def test_second_desktop_process_returns_without_opening_database_concurrently(
             timeout=5,
         )
         assert secondary.returncode == 0, secondary.stderr
-        assert primary.wait(timeout=5) == 0
+        assert primary.wait(timeout=7) == 0
     finally:
         if primary.poll() is None:
             primary.terminate()

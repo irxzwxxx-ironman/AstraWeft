@@ -267,8 +267,8 @@ async def test_workflow_run_restart_state_and_artifact_lineage_round_trip(tmp_pa
         )
         async with factory() as uow:
             await uow.runs.update(running, expected_version=run.row_version)
-            await uow.runs.update_node_run(ready, expected_version=node_run.row_version)
-            await uow.runs.update_node_run(executing, expected_version=ready.row_version)
+            await uow.runs.update_node_runs(((ready, node_run.row_version),))
+            await uow.runs.update_node_runs(((executing, ready.row_version),))
             await uow.runs.add_artifact_link(link)
             await uow.commit()
 
@@ -279,6 +279,10 @@ async def test_workflow_run_restart_state_and_artifact_lineage_round_trip(tmp_pa
             )
             assert await uow.runs.list_node_runs(run.id) == (executing,)
             assert await uow.runs.list_artifact_links(node_run.id) == (link,)
+
+        async with factory() as uow:
+            with pytest.raises(WorkflowOptimisticConcurrencyError):
+                await uow.runs.update_node_runs(((ready, node_run.row_version),))
     finally:
         await context.close()
 

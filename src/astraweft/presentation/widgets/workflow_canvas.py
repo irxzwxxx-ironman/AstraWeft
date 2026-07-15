@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from astraweft.presentation.design_system.tokens import Colors
+from astraweft.presentation.i18n import Translator
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,9 +53,16 @@ class CanvasEdge:
 class WorkflowNodeItem(QGraphicsObject):
     moved = Signal(str, int, int)
 
-    def __init__(self, node: CanvasNode, *, editable: bool) -> None:
+    def __init__(
+        self,
+        node: CanvasNode,
+        *,
+        editable: bool,
+        translator: Translator | None = None,
+    ) -> None:
         super().__init__()
         self.node = node
+        self._translator = translator or Translator()
         self.setData(0, node.key)
         self.setFlags(
             QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
@@ -119,8 +127,12 @@ class WorkflowNodeItem(QGraphicsObject):
         body_font.setPointSize(8)
         body_font.setBold(False)
         painter.setFont(body_font)
-        inputs = ", ".join(_port_names(self.node.input_schema)) or "无输入"
-        outputs = ", ".join(_port_names(self.node.output_schema)) or "无输出"
+        inputs = ", ".join(_port_names(self.node.input_schema)) or self._translator.text(
+            "无输入", "No inputs"
+        )
+        outputs = ", ".join(_port_names(self.node.output_schema)) or self._translator.text(
+            "无输出", "No outputs"
+        )
         painter.drawText(QRectF(16, 66, 190, 16), f"IN   {_elide(inputs, 30)}")
         painter.drawText(QRectF(16, 89, 190, 16), f"OUT  {_elide(outputs, 30)}")
         painter.setPen(QColor(Colors.TEXT_DIM))
@@ -148,10 +160,11 @@ class WorkflowCanvas(QGraphicsView):
     node_selected = Signal(str)
     node_moved = Signal(str, int, int)
 
-    def __init__(self) -> None:
+    def __init__(self, translator: Translator | None = None) -> None:
         super().__init__()
+        self._translator = translator or Translator()
         self.setObjectName("WorkflowCanvas")
-        self.setAccessibleName("工作流画布")
+        self.setAccessibleName(self._translator.text("工作流画布", "Workflow canvas"))
         self._scene = QGraphicsScene(self)
         self.setScene(self._scene)
         self._items: dict[str, WorkflowNodeItem] = {}
@@ -176,7 +189,7 @@ class WorkflowCanvas(QGraphicsView):
         self._edge_items.clear()
         self._edges = tuple(edges)
         for node in nodes:
-            item = WorkflowNodeItem(node, editable=editable)
+            item = WorkflowNodeItem(node, editable=editable, translator=self._translator)
             item.moved.connect(self._node_moved)
             self._scene.addItem(item)
             self._items[node.key] = item

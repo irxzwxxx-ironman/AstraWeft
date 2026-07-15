@@ -20,7 +20,12 @@ from astraweft.presentation.design_system import apply_theme
 from astraweft.presentation.main_window import MainWindow
 
 
-def run_desktop(data_root: Path | None = None, *, quit_after_ms: int | None = None) -> int:
+def run_desktop(
+    data_root: Path | None = None,
+    *,
+    quit_after_ms: int | None = None,
+    gateway_port_override: int | None = None,
+) -> int:
     """Start AstraWeft and own all process resources until Qt quits."""
     application = QApplication.instance()
     if application is None:
@@ -67,13 +72,36 @@ def run_desktop(data_root: Path | None = None, *, quit_after_ms: int | None = No
     try:
         with loop:
             try:
-                context = loop.run_until_complete(build_app_context(data_root))
+                context = loop.run_until_complete(
+                    build_app_context(
+                        data_root,
+                        gateway_port_override=gateway_port_override,
+                    )
+                )
                 QLocale.setDefault(QLocale(getattr(context.settings, "language", "zh_CN")))
                 apply_theme(
                     application,
                     theme=context.settings.theme,
                     reduce_motion=context.settings.reduce_motion,
                 )
+                context.task_runtime.start()
+                context.workflow_runtime.start()
+                gateway = getattr(context, "loopback_gateway", None)
+                if gateway is not None:
+                    with context.traces.start():
+                        try:
+                            loop.run_until_complete(gateway.start())
+                            logging.getLogger("astraweft.bootstrap").info(
+                                "loopback_gateway_ready",
+                                extra={
+                                    "secure_storage_persistent": context.secret_store.persistent,
+                                    "port": gateway.bound_port,
+                                },
+                            )
+                        except Exception:
+                            logging.getLogger("astraweft.bootstrap").exception(
+                                "loopback_gateway_start_failed"
+                            )
                 window = MainWindow(
                     context.presentation_status(),
                     context.provider_service,
@@ -93,17 +121,6 @@ def run_desktop(data_root: Path | None = None, *, quit_after_ms: int | None = No
                     language=getattr(context.settings, "language", "zh_CN"),
                     app_settings=context.settings,
                 )
-                gateway = getattr(context, "loopback_gateway", None)
-                if gateway is not None:
-                    with context.traces.start():
-                        try:
-                            loop.run_until_complete(gateway.start())
-                        except Exception:
-                            logging.getLogger("astraweft.bootstrap").exception(
-                                "loopback_gateway_start_failed"
-                            )
-                context.task_runtime.start()
-                context.workflow_runtime.start()
                 instance.set_activation_handler(window.activate_from_external_instance)
                 window.show()
                 application.aboutToQuit.connect(loop.stop)

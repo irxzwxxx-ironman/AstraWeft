@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any, cast
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import Table, bindparam, delete, select, update
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -320,6 +320,42 @@ class SQLWorkflowRunRepository:
         )
         if result.rowcount != 1:
             raise WorkflowOptimisticConcurrencyError("Node run was updated by another worker")
+
+    async def update_node_runs(
+        self,
+        updates: tuple[tuple[NodeRun, int], ...],
+    ) -> None:
+        """Update a durable node wave in one optimistic executemany statement."""
+        if not updates:
+            return
+        table = cast(Table, NodeRunRecord.__table__)
+        value_names = tuple(_node_run_values(updates[0][0]))
+        statement = (
+            update(table)
+            .where(
+                table.c.id == bindparam("match_id"),
+                table.c.row_version == bindparam("match_row_version"),
+            )
+            .values({name: bindparam(f"value_{name}") for name in value_names})
+        )
+        parameters: list[dict[str, object]] = []
+        for node_run, expected_version in updates:
+            values = _node_run_values(node_run)
+            parameters.append(
+                {
+                    "match_id": node_run.id,
+                    "match_row_version": expected_version,
+                    **{f"value_{name}": values[name] for name in value_names},
+                }
+            )
+        result = cast(
+            CursorResult[Any],
+            await self._session.execute(statement, parameters),
+        )
+        if result.rowcount != len(updates):
+            raise WorkflowOptimisticConcurrencyError(
+                "One or more node runs were updated by another worker"
+            )
 
     async def add_artifact_link(self, link: ArtifactLink) -> None:
         self._session.add(_artifact_link_record(link))

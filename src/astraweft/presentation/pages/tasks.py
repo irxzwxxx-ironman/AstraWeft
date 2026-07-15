@@ -25,6 +25,7 @@ from astraweft.application.query import QueryService
 from astraweft.application.tasks import TaskService
 from astraweft.domain.task import Task, TaskStatus
 from astraweft.presentation.design_system import fixed_width_font
+from astraweft.presentation.i18n import Translator
 from astraweft.presentation.widgets.controls import Button
 from astraweft.presentation.widgets.data_views import DataTable
 from astraweft.presentation.widgets.feedback import EmptyState
@@ -33,11 +34,17 @@ from astraweft.presentation.widgets.feedback import EmptyState
 class TaskCenterPage(QWidget):
     """Latest 1,000 tasks with attempts, output, cancel, and clear next action."""
 
-    def __init__(self, service: TaskService, queries: QueryService | None = None) -> None:
+    def __init__(
+        self,
+        service: TaskService,
+        queries: QueryService | None = None,
+        translator: Translator | None = None,
+    ) -> None:
         super().__init__()
         self.setObjectName("TaskCenterPage")
         self._service = service
         self._queries = queries
+        self._translator = translator or Translator()
         self._next_cursor: str | None = None
         self._items: tuple[Task, ...] = ()
         self._tasks: set[asyncio.Task[Any]] = set()
@@ -48,20 +55,20 @@ class TaskCenterPage(QWidget):
         root.setSpacing(18)
         header = QHBoxLayout()
         titles = QVBoxLayout()
-        title = QLabel("任务中心")
+        title = QLabel(self._translator.text("任务中心", "Task Center"))
         title.setObjectName("ContentTitle")
-        self._summary = QLabel("读取任务队列…")
+        self._summary = QLabel(self._translator.text("读取任务队列…", "Loading task queue…"))
         self._summary.setObjectName("BodyText")
         titles.addWidget(title)
         titles.addWidget(self._summary)
         header.addLayout(titles)
         header.addStretch(1)
-        self._cancel = Button("取消任务", variant="danger")
+        self._cancel = Button(self._translator.text("取消任务", "Cancel task"), variant="danger")
         self._cancel.setEnabled(False)
         self._cancel.clicked.connect(lambda: self._start(self._cancel_selected()))
-        refresh = Button("刷新", variant="ghost")
+        refresh = Button(self._translator.text("刷新", "Refresh"), variant="ghost")
         refresh.clicked.connect(self.request_refresh)
-        self._load_more = Button("加载更多", variant="ghost")
+        self._load_more = Button(self._translator.text("加载更多", "Load more"), variant="ghost")
         self._load_more.clicked.connect(lambda: self._start(self._load_next()))
         self._load_more.hide()
         header.addWidget(self._cancel)
@@ -69,7 +76,7 @@ class TaskCenterPage(QWidget):
         header.addWidget(refresh)
         root.addLayout(header)
 
-        self._table = DataTable("任务列表")
+        self._table = DataTable(self._translator.text("任务列表", "Task list"))
         self._table.clicked.connect(lambda index: self._show_detail(index.row()))
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter.addWidget(self._table)
@@ -78,7 +85,14 @@ class TaskCenterPage(QWidget):
         self._splitter.setStretchFactor(1, 2)
         self._splitter.setSizes([760, 440])
         root.addWidget(self._splitter, 1)
-        self._empty = EmptyState("◷", "队列当前为空", "从 Playground 运行第一个模型任务。")
+        self._empty = EmptyState(
+            "◷",
+            self._translator.text("队列当前为空", "The queue is empty"),
+            self._translator.text(
+                "从 Playground 运行第一个模型任务。",
+                "Run your first model task from the Playground.",
+            ),
+        )
         self._empty.hide()
         root.addWidget(self._empty, 1)
         QTimer.singleShot(0, self.request_refresh)
@@ -91,7 +105,7 @@ class TaskCenterPage(QWidget):
         layout.setSpacing(10)
         eyebrow = QLabel("TASK DETAIL")
         eyebrow.setObjectName("HeroEyebrow")
-        self._detail_title = QLabel("选择一个任务")
+        self._detail_title = QLabel(self._translator.text("选择一个任务", "Select a task"))
         self._detail_title.setObjectName("CardTitle")
         self._detail_meta = QLabel()
         self._detail_meta.setObjectName("MutedText")
@@ -101,7 +115,9 @@ class TaskCenterPage(QWidget):
         self._attempts.setWordWrap(True)
         self._output = QPlainTextEdit()
         self._output.setObjectName("SchemaViewer")
-        self._output.setAccessibleName("任务规范化输出")
+        self._output.setAccessibleName(
+            self._translator.text("任务规范化输出", "Normalized task output")
+        )
         self._output.setFont(fixed_width_font())
         self._output.setReadOnly(True)
         layout.addWidget(eyebrow)
@@ -126,7 +142,7 @@ class TaskCenterPage(QWidget):
                 self._next_cursor = page.next_cursor
         except Exception:
             self._logger.exception("task_center_load_failed")
-            self._summary.setText("任务读取失败")
+            self._summary.setText(self._translator.text("任务读取失败", "Unable to load tasks"))
             return
         await self._render(selected)
 
@@ -138,7 +154,9 @@ class TaskCenterPage(QWidget):
             page = await self._queries.search_tasks(cursor=self._next_cursor, limit=100)
         except Exception:
             self._logger.exception("task_center_next_page_failed")
-            self._summary.setText("加载更多任务失败")
+            self._summary.setText(
+                self._translator.text("加载更多任务失败", "Unable to load more tasks")
+            )
             return
         self._items += page.items
         self._next_cursor = page.next_cursor
@@ -147,19 +165,38 @@ class TaskCenterPage(QWidget):
     async def _render(self, selected: str | None) -> None:
         running = sum(not task.status.terminal for task in self._items)
         attention = sum(task.status is TaskStatus.NEEDS_ATTENTION for task in self._items)
-        self._summary.setText(
-            f"显示最近 {len(self._items)} 个任务  ·  {running} 个进行中"
-            + (f"  ·  {attention} 个需要处理" if attention else "")
+        summary = self._translator.text(
+            "显示最近 {total} 个任务  ·  {running} 个进行中",
+            "Showing {total} recent tasks  ·  {running} in progress",
+            total=self._translator.integer(len(self._items)),
+            running=self._translator.integer(running),
         )
+        if attention:
+            summary += self._translator.text(
+                "  ·  {count} 个需要处理",
+                "  ·  {count} need attention",
+                count=self._translator.integer(attention),
+            )
+        self._summary.setText(summary)
         self._splitter.setVisible(bool(self._items))
         self._empty.setVisible(not self._items)
         self._load_more.setVisible(self._next_cursor is not None)
+        self._cancel.setEnabled(False)
         model = QStandardItemModel(0, 6, self)
-        model.setHorizontalHeaderLabels(["状态", "操作", "进度", "优先级", "更新时间", "Task ID"])
+        model.setHorizontalHeaderLabels(
+            [
+                self._translator.text("状态", "Status"),
+                self._translator.text("操作", "Operation"),
+                self._translator.text("进度", "Progress"),
+                self._translator.text("优先级", "Priority"),
+                self._translator.text("更新时间", "Updated"),
+                "Task ID",
+            ]
+        )
         selected_row = 0
         for row, task in enumerate(self._items):
             values = (
-                _status_text(task.status),
+                _status_text(task.status, self._translator),
                 task.operation,
                 "—" if task.progress is None else f"{task.progress}%",
                 str(task.priority),
@@ -194,18 +231,26 @@ class TaskCenterPage(QWidget):
         if task is None:
             return
         attempts = await self._service.list_attempts(task.id)
-        self._detail_title.setText(f"{_status_text(task.status)} · {task.operation}")
+        self._detail_title.setText(
+            f"{_status_text(task.status, self._translator)} · {task.operation}"
+        )
         self._detail_meta.setText(
-            f"{task.id}\nProvider {task.provider_id}  ·  版本 {task.row_version}"
+            self._translator.text(
+                "{task_id}\nProvider {provider_id}  ·  版本 {version}",
+                "{task_id}\nProvider {provider_id}  ·  version {version}",
+                task_id=task.id,
+                provider_id=task.provider_id,
+                version=task.row_version,
+            )
         )
         self._attempts.setText(
-            "执行记录  "
+            self._translator.text("执行记录  ", "Attempts  ")
             + (
                 "  ·  ".join(
                     f"#{attempt.attempt_no} {attempt.phase.value} / {attempt.status.value}"
                     for attempt in attempts
                 )
-                or "暂无"
+                or self._translator.text("暂无", "None")
             )
         )
         self._output.setPlainText(_json_text(task.normalized_output or {}))
@@ -243,21 +288,22 @@ class TaskCenterPage(QWidget):
         task.add_done_callback(self._tasks.discard)
 
 
-def _status_text(status: TaskStatus) -> str:
+def _status_text(status: TaskStatus, translator: Translator | None = None) -> str:
+    translator = translator or Translator()
     return {
-        TaskStatus.CREATED: "已创建",
-        TaskStatus.QUEUED: "排队中",
-        TaskStatus.SUBMITTING: "提交中",
-        TaskStatus.RUNNING: "运行中",
-        TaskStatus.POLLING: "轮询中",
-        TaskStatus.RETRY_WAIT: "等待重试",
-        TaskStatus.CANCELING: "取消中",
-        TaskStatus.RECOVERING: "恢复中",
-        TaskStatus.SUCCESS: "成功",
-        TaskStatus.FAILED: "失败",
-        TaskStatus.CANCELED: "已取消",
-        TaskStatus.TIMED_OUT: "已超时",
-        TaskStatus.NEEDS_ATTENTION: "需要处理",
+        TaskStatus.CREATED: translator.text("已创建", "Created"),
+        TaskStatus.QUEUED: translator.text("排队中", "Queued"),
+        TaskStatus.SUBMITTING: translator.text("提交中", "Submitting"),
+        TaskStatus.RUNNING: translator.text("运行中", "Running"),
+        TaskStatus.POLLING: translator.text("轮询中", "Polling"),
+        TaskStatus.RETRY_WAIT: translator.text("等待重试", "Waiting to retry"),
+        TaskStatus.CANCELING: translator.text("取消中", "Canceling"),
+        TaskStatus.RECOVERING: translator.text("恢复中", "Recovering"),
+        TaskStatus.SUCCESS: translator.text("成功", "Succeeded"),
+        TaskStatus.FAILED: translator.text("失败", "Failed"),
+        TaskStatus.CANCELED: translator.text("已取消", "Canceled"),
+        TaskStatus.TIMED_OUT: translator.text("已超时", "Timed out"),
+        TaskStatus.NEEDS_ATTENTION: translator.text("需要处理", "Needs attention"),
     }[status]
 
 

@@ -56,6 +56,7 @@ class DashboardPage(QScrollArea):
         self._translator = translator or Translator()
         self._tasks: set[asyncio.Task[Any]] = set()
         self._logger = logging.getLogger("astraweft.presentation.dashboard")
+        self._hero_destination = "providers"
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
@@ -169,30 +170,35 @@ class DashboardPage(QScrollArea):
         copy.setSpacing(6)
         eyebrow = QLabel("LOCAL AI WORKSPACE  /  READY")
         eyebrow.setObjectName("HeroEyebrow")
-        title = QLabel(
+        self._hero_title = QLabel(
             self._translator.text("创作工作区已就绪", "Your creative workspace is ready")
         )
-        title.setObjectName("HeroTitle")
-        body = QLabel(
+        self._hero_title.setObjectName("HeroTitle")
+        self._hero_body = QLabel(
             self._translator.text(
                 "核心服务已在本机启动。连接一个 Provider，开始编排模型、任务与工作流。",
                 "Core services are running locally. Connect a Provider to orchestrate models, tasks, and workflows.",
             )
         )
-        body.setObjectName("HeroBody")
-        body.setWordWrap(True)
+        self._hero_body.setObjectName("HeroBody")
+        self._hero_body.setWordWrap(True)
         copy.addWidget(eyebrow)
-        copy.addWidget(title)
-        copy.addWidget(body)
+        copy.addWidget(self._hero_title)
+        copy.addWidget(self._hero_body)
         copy.addStretch(1)
         layout.addLayout(copy, 1)
 
-        action = QPushButton(self._translator.text("连接 Provider  →", "Connect Provider  →"))
-        action.setObjectName("PrimaryButton")
-        action.setCursor(Qt.CursorShape.PointingHandCursor)
-        action.clicked.connect(lambda: self.open_page_requested.emit("providers"))
-        action.setFixedWidth(148)
-        layout.addWidget(action, 0, Qt.AlignmentFlag.AlignVCenter)
+        self._hero_action = QPushButton(
+            self._translator.text("连接 Provider  →", "Connect Provider  →")
+        )
+        self._hero_action.setObjectName("PrimaryButton")
+        self._hero_action.setAccessibleName(self._hero_action.text())
+        self._hero_action.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._hero_action.clicked.connect(
+            lambda: self.open_page_requested.emit(self._hero_destination)
+        )
+        self._hero_action.setFixedWidth(148)
+        layout.addWidget(self._hero_action, 0, Qt.AlignmentFlag.AlignVCenter)
         return hero
 
     def _health_card(self, status: ApplicationStatus) -> SectionCard:
@@ -220,13 +226,12 @@ class DashboardPage(QScrollArea):
                 Colors.SUCCESS if status.credential_store_persistent else Colors.WARNING,
             )
         )
-        card.add_widget(
-            HealthRow(
-                "Provider Registry",
-                self._translator.text("等待配置", "Awaiting configuration"),
-                Colors.TEXT_DIM,
-            )
+        self._provider_health = HealthRow(
+            "Provider Registry",
+            self._translator.text("等待配置", "Awaiting configuration"),
+            Colors.TEXT_DIM,
         )
+        card.add_widget(self._provider_health)
         card.add_widget(
             HealthRow(
                 "ComfyUI",
@@ -370,9 +375,9 @@ class DashboardPage(QScrollArea):
         self._provider_summary.setText(
             self._translator.text(
                 "{providers} 个已配置  ·  {enabled} 个已启用  ·  {healthy} 个最近检查健康\n"
-                "本地产物 {artifacts} 个 / {size}；凭据仅保存在系统密钥环。",
+                "本地产物 {artifacts} 个 / {size}；凭据由安全存储管理。",
                 "{providers} configured  ·  {enabled} enabled  ·  {healthy} recently healthy\n"
-                "{artifacts} local artifacts / {size}; credentials stay in the system keychain.",
+                "{artifacts} local artifacts / {size}; credentials use secure storage.",
                 providers=self._translator.integer(provider_count),
                 enabled=self._translator.integer(enabled),
                 healthy=self._translator.integer(healthy),
@@ -380,6 +385,46 @@ class DashboardPage(QScrollArea):
                 size=_size(artifact_size),
             )
         )
+        if provider_count:
+            self._hero_destination = "playground"
+            self._hero_title.setText(
+                self._translator.text(
+                    "Provider 已连接，可以开始创作",
+                    "Your Provider is ready for creation",
+                )
+            )
+            self._hero_body.setText(
+                self._translator.text(
+                    "{providers} 个 Provider 已配置，{healthy} 个最近检查健康。现在可以运行模型任务或编排工作流。",
+                    "Configured Providers: {providers}. Recently healthy: {healthy}. Run a model task or compose a workflow.",
+                    providers=self._translator.integer(provider_count),
+                    healthy=self._translator.integer(healthy),
+                )
+            )
+            action_text = self._translator.text("打开 Playground  →", "Open Playground  →")
+            provider_state = self._translator.text(
+                "{count} 个已配置",
+                "{count} configured",
+                count=self._translator.integer(provider_count),
+            )
+            provider_color = Colors.SUCCESS if healthy else Colors.WARNING
+        else:
+            self._hero_destination = "providers"
+            self._hero_title.setText(
+                self._translator.text("创作工作区已就绪", "Your creative workspace is ready")
+            )
+            self._hero_body.setText(
+                self._translator.text(
+                    "核心服务已在本机启动。连接一个 Provider，开始编排模型、任务与工作流。",
+                    "Core services are running locally. Connect a Provider to orchestrate models, tasks, and workflows.",
+                )
+            )
+            action_text = self._translator.text("连接 Provider  →", "Connect Provider  →")
+            provider_state = self._translator.text("等待配置", "Awaiting configuration")
+            provider_color = Colors.TEXT_DIM
+        self._hero_action.setText(action_text)
+        self._hero_action.setAccessibleName(action_text)
+        self._provider_health.set_status(provider_state, provider_color)
 
     def _render_queue(self, tasks: tuple[Task, ...]) -> None:
         _clear_layout(self._queue_layout)

@@ -39,6 +39,8 @@ async def test_workflow_page_edits_publishes_and_observes_transform_run(
     try:
         await page._refresh_list()
         assert page._list_empty.isVisible()
+        assert not page._open_button.isEnabled()
+        assert not page._export_button.isEnabled()
 
         created = await context.workflow_service.create(CreateWorkflow("GUI Transform"))
         page._load_snapshot(created)
@@ -83,6 +85,8 @@ async def test_workflow_page_edits_publishes_and_observes_transform_run(
         await page._refresh_list()
         assert page._list_table.model() is not None
         assert page._list_table.model().rowCount() == 1
+        assert page._open_button.isEnabled()
+        assert page._export_button.isEnabled()
     finally:
         await asyncio.sleep(0)
         tasks = tuple(page._tasks)

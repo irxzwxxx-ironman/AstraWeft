@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QShowEvent
 from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from astraweft.presentation.i18n import Translator
 from astraweft.presentation.widgets.controls import Button, IconButton
 
 ToastTone = Literal["success", "warning", "danger", "info"]
@@ -57,8 +58,16 @@ class ErrorState(QWidget):
 
     retry_requested = Signal()
 
-    def __init__(self, message: str, trace_id: str, *, retry_text: str = "重试") -> None:
+    def __init__(
+        self,
+        message: str,
+        trace_id: str,
+        *,
+        retry_text: str | None = None,
+        translator: Translator | None = None,
+    ) -> None:
         super().__init__()
+        translator = translator or Translator()
         self.setObjectName("ErrorState")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -69,7 +78,7 @@ class ErrorState(QWidget):
         icon.setObjectName("ErrorIcon")
         icon.setFixedSize(46, 46)
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title = QLabel("操作未完成")
+        title = QLabel(translator.text("操作未完成", "Operation Not Completed"))
         title.setObjectName("EmptyTitle")
         body = QLabel(message)
         body.setObjectName("BodyText")
@@ -79,12 +88,12 @@ class ErrorState(QWidget):
         trace_row = QHBoxLayout()
         trace = QLabel(f"TRACE  {trace_id}")
         trace.setObjectName("TraceText")
-        copy = IconButton("⧉", "复制 trace ID")
+        copy = IconButton("⧉", translator.text("复制 trace ID", "Copy trace ID"))
         copy.clicked.connect(lambda: QApplication.clipboard().setText(trace_id))
         trace_row.addWidget(trace)
         trace_row.addWidget(copy)
 
-        retry = Button(retry_text)
+        retry = Button(retry_text or translator.text("重试", "Retry"))
         retry.clicked.connect(self.retry_requested)
         layout.addWidget(icon, 0, Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
@@ -96,10 +105,11 @@ class ErrorState(QWidget):
 class SkeletonBlock(QFrame):
     """Static skeleton placeholder; intentionally animation-free."""
 
-    def __init__(self, *, height: int = 18) -> None:
+    def __init__(self, *, height: int = 18, translator: Translator | None = None) -> None:
         super().__init__()
+        translator = translator or Translator()
         self.setObjectName("SkeletonBlock")
-        self.setAccessibleName("正在加载")
+        self.setAccessibleName(translator.text("正在加载", "Loading"))
         self.setFixedHeight(height)
 
 
@@ -108,8 +118,16 @@ class Toast(QFrame):
 
     dismissed = Signal()
 
-    def __init__(self, text: str, *, tone: ToastTone = "info", duration_ms: int = 4000) -> None:
+    def __init__(
+        self,
+        text: str,
+        *,
+        tone: ToastTone = "info",
+        duration_ms: int = 4000,
+        translator: Translator | None = None,
+    ) -> None:
         super().__init__()
+        translator = translator or Translator()
         if duration_ms < 0:
             raise ValueError("duration_ms must be non-negative")
         self.setObjectName("Toast")
@@ -127,7 +145,7 @@ class Toast(QFrame):
         message = QLabel(text)
         message.setObjectName("ToastText")
         message.setWordWrap(True)
-        close = IconButton("×", "关闭通知")
+        close = IconButton("×", translator.text("关闭通知", "Close notification"))
         close.clicked.connect(self.dismiss)
         layout.addWidget(marker)
         layout.addWidget(message, 1)

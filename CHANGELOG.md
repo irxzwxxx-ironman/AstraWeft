@@ -57,3 +57,30 @@ intends to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   audit.
 - Artifact type/time filters, metadata and lineage details, missing-file states, lazy
   content-addressed image thumbnails, and SQLite migration `20260715_0007` filter indexes.
+- Cross-platform PyInstaller one-folder specification with a macOS `.app`, bundled Provider
+  metadata/migrations, legal files, ComfyUI Custom Node extras, and per-file SHA-256 provenance.
+- Packaged cold-start and `0006 → 0007 → 0006 → 0007` upgrade/rollback smoke gates with preserved
+  data and verified pre-migration backups.
+- Isolated five-wheel release validation, CycloneDX runtime SBOM, third-party license inventory,
+  OSV vulnerability evidence, user/troubleshooting documentation, Provider development guidance,
+  and a Beta migration/rollback policy.
+- Optimistic executemany persistence for Workflow NodeRun waves, preserving atomic stale-writer
+  rejection while restoring comfortable headroom for the 1,000-node coverage-instrumented gate.
+- Runtime-verified credential storage that safely degrades from an unavailable OS keyring to
+  process memory without plaintext persistence, while keeping the effective mode visible in the UI.
+- Packaged startup evidence that requires the authenticated loopback gateway to bind successfully
+  and records its non-sensitive secure-storage mode.
+- Release manifest schema v2 with independent file, executable-mode, symlink-target, membership,
+  and aggregate-digest verification, plus native archives that must survive an extraction round trip.
+- Pinned GitHub Actions and durable candidate/evidence uploads for pull-request package smokes and
+  manually or tag-triggered full native release gates on macOS, Windows, and Linux.
+- Screenshot-driven whole-product UI audit with Provider-aware dashboard actions, responsive
+  scrolling settings cards, honest disabled actions, dark native controls, and WCAG-AA contrast
+  headroom for small secondary text across the three dark surfaces.
+- Complete English localization for all 11 production pages, the Workflow editor, Provider and
+  ComfyUI dialogs, shared feedback states, queue/tray copy, and plugin-owned Schema forms, including
+  the non-validating `x-astraweft-i18n` Provider extension and automated fixed-Chinese regression
+  coverage.
+- Developer ID build inputs and a secret-safe macOS notarization finalizer that requires hardened
+  runtime, secure timestamps, stapling and Gatekeeper acceptance before re-hashing the exact final
+  payload into the promotable manifest and archive.

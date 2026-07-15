@@ -30,16 +30,38 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def artifact_files(root: Path) -> list[dict[str, Any]]:
-    """Describe every release file except the self-referential manifest."""
+def _resolved_inside(path: Path, root: Path) -> None:
+    try:
+        path.resolve(strict=True).relative_to(root.resolve(strict=True))
+    except (FileNotFoundError, ValueError) as exc:
+        raise RuntimeError(f"release symlink escapes or is broken: {path}") from exc
+
+
+def artifact_entries(root: Path) -> list[dict[str, Any]]:
+    """Describe every release file and symlink except the manifest itself."""
     result: list[dict[str, Any]] = []
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.name in {MANIFEST_NAME, ".DS_Store"}:
+    paths = sorted(root.rglob("*"), key=lambda item: item.relative_to(root).as_posix())
+    for path in paths:
+        relative = path.relative_to(root)
+        if relative == Path(MANIFEST_NAME) or path.name == ".DS_Store":
+            continue
+        if path.is_symlink():
+            _resolved_inside(path, root)
+            result.append(
+                {
+                    "path": relative.as_posix(),
+                    "type": "symlink",
+                    "target": path.readlink().as_posix(),
+                }
+            )
+            continue
+        if not path.is_file():
             continue
         stat = path.stat()
         result.append(
             {
-                "path": path.relative_to(root).as_posix(),
+                "path": relative.as_posix(),
+                "type": "file",
                 "sha256": sha256_file(path),
                 "size": stat.st_size,
                 "executable": bool(stat.st_mode & 0o111),
@@ -54,12 +76,20 @@ def build_manifest(dist_root: Path, command: list[str]) -> dict[str, Any]:
         app_version = version("astraweft")
     except PackageNotFoundError:
         app_version = "0.1.0.dev0"
-    files = artifact_files(dist_root)
+    entries = artifact_entries(dist_root)
     aggregate = hashlib.sha256()
-    for item in files:
-        aggregate.update(f"{item['sha256']}  {item['path']}\n".encode())
+    for entry in entries:
+        aggregate.update(
+            json.dumps(
+                entry,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+            + b"\n"
+        )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "product": "AstraWeft",
         "version": app_version,
         "license": "Apache-2.0",
@@ -75,9 +105,45 @@ def build_manifest(dist_root: Path, command: list[str]) -> dict[str, Any]:
             "spec_sha256": sha256_file(PROJECT_ROOT / "packaging" / "AstraWeft.spec"),
         },
         "payload_sha256": aggregate.hexdigest(),
-        "file_count": len(files),
-        "files": files,
+        "entry_count": len(entries),
+        "file_count": sum(entry["type"] == "file" for entry in entries),
+        "symlink_count": sum(entry["type"] == "symlink" for entry in entries),
+        "entries": entries,
     }
+
+
+def write_manifest(
+    dist_root: Path,
+    command: list[str],
+    *,
+    release_metadata: dict[str, Any] | None = None,
+) -> Path:
+    """Write a fresh manifest for the exact current payload bytes."""
+    manifest = build_manifest(dist_root, command)
+    if release_metadata is not None:
+        manifest["release"] = release_metadata
+    manifest_path = dist_root / MANIFEST_NAME
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return manifest_path
+
+
+def refresh_manifest(dist_root: Path, release_metadata_path: Path | None = None) -> Path:
+    """Re-hash an externally signed/stapled payload while preserving build provenance."""
+    manifest_path = dist_root / MANIFEST_NAME
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"release manifest not found: {manifest_path}")
+    existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+    build = existing.get("build")
+    command = build.get("command") if isinstance(build, dict) else None
+    if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
+        raise RuntimeError("existing release manifest has invalid build provenance")
+    release_metadata: dict[str, Any] | None = None
+    if release_metadata_path is not None:
+        parsed = json.loads(release_metadata_path.read_text(encoding="utf-8"))
+        if not isinstance(parsed, dict):
+            raise RuntimeError("release metadata must be a JSON object")
+        release_metadata = parsed
+    return write_manifest(dist_root, command, release_metadata=release_metadata)
 
 
 def copy_release_extras(dist_root: Path) -> None:
@@ -118,18 +184,31 @@ def build(dist_root: Path, work_root: Path) -> Path:
         if duplicate_collection.is_dir():
             shutil.rmtree(duplicate_collection)
     copy_release_extras(dist_root)
-    manifest = build_manifest(dist_root, command)
-    manifest_path = dist_root / MANIFEST_NAME
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    return manifest_path
+    return write_manifest(dist_root, command)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dist-dir", type=Path, default=DEFAULT_DIST)
     parser.add_argument("--work-dir", type=Path, default=DEFAULT_WORK)
+    parser.add_argument(
+        "--manifest-only",
+        action="store_true",
+        help="re-hash an existing payload after platform signing or stapling",
+    )
+    parser.add_argument(
+        "--release-metadata",
+        type=Path,
+        help="JSON object to embed when refreshing a finalized payload",
+    )
     args = parser.parse_args()
-    manifest = build(args.dist_dir, args.work_dir)
+    if args.release_metadata is not None and not args.manifest_only:
+        parser.error("--release-metadata requires --manifest-only")
+    manifest = (
+        refresh_manifest(args.dist_dir.resolve(), args.release_metadata)
+        if args.manifest_only
+        else build(args.dist_dir, args.work_dir)
+    )
     sys.stdout.write(f"{manifest}\n")
     return 0
 

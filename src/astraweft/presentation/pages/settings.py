@@ -8,7 +8,7 @@ from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any, Literal
 
-from PySide6.QtCore import QTimer, QUrl, Signal
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -28,7 +29,7 @@ from astraweft.presentation.i18n import Translator
 from astraweft.presentation.widgets.controls import Badge, BadgeTone, Button, SelectInput
 
 
-class SettingsPage(QWidget):
+class SettingsPage(QScrollArea):
     """Expose preview-first, recoverable local maintenance operations."""
 
     notification_preference_changed = Signal(bool)
@@ -49,7 +50,11 @@ class SettingsPage(QWidget):
         self._translator = translator or Translator()
         self._tasks: set[asyncio.Task[Any]] = set()
         self._logger = logging.getLogger("astraweft.presentation.settings")
-        root = QVBoxLayout(self)
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        canvas = QWidget()
+        canvas.setObjectName("SettingsCanvas")
+        root = QVBoxLayout(canvas)
         root.setContentsMargins(30, 27, 30, 24)
         root.setSpacing(18)
 
@@ -109,80 +114,117 @@ class SettingsPage(QWidget):
             preference_layout.addWidget(self._preference_status)
             root.addWidget(preference_card)
 
-        database_card, database_layout = _card("数据库健康")
+        database_card, database_layout = _card(
+            self._translator.text("数据库健康", "Database health")
+        )
         database_header = QHBoxLayout()
-        self._health = QLabel("正在检查数据库…")
+        self._health = QLabel(self._translator.text("正在检查数据库…", "Checking database…"))
         self._health.setObjectName("BodyText")
-        self._health_badge = Badge("检查中", tone="neutral")
+        self._health_badge = Badge(self._translator.text("检查中", "Checking"), tone="neutral")
         database_header.addWidget(self._health)
         database_header.addStretch(1)
         database_header.addWidget(self._health_badge)
         database_layout.addLayout(database_header)
         root.addWidget(database_card)
 
-        backup_card, backup_layout = _card("备份与恢复")
+        backup_card, backup_layout = _card(
+            self._translator.text("备份与恢复", "Backup and restore")
+        )
         backup_hint = QLabel(
-            "备份使用 SQLite 在线一致性快照。恢复前会预览影响，并在下次启动替换前自动保留当前数据。"
+            self._translator.text(
+                "备份使用 SQLite 在线一致性快照。恢复前会预览影响，并在下次启动替换前自动保留当前数据。",
+                "Backups use transactionally consistent online SQLite snapshots. Restore impact is previewed, and current data is preserved automatically before replacement at next startup.",
+            )
         )
         backup_hint.setObjectName("BodyText")
         backup_hint.setWordWrap(True)
         backup_layout.addWidget(backup_hint)
         backup_actions = QHBoxLayout()
-        backup = Button("立即备份")
+        backup = Button(self._translator.text("立即备份", "Back up now"))
         backup.clicked.connect(lambda: self._start(self._create_backup()))
-        restore = Button("从备份恢复", variant="ghost")
+        restore = Button(
+            self._translator.text("从备份恢复", "Restore from backup"),
+            variant="ghost",
+        )
         restore.clicked.connect(self._choose_restore)
-        open_backups = Button("打开备份目录", variant="ghost")
+        open_backups = Button(
+            self._translator.text("打开备份目录", "Open backup folder"),
+            variant="ghost",
+        )
         open_backups.clicked.connect(lambda: _open_folder(self._data_root / "backups"))
         backup_actions.addWidget(backup)
         backup_actions.addWidget(restore)
         backup_actions.addWidget(open_backups)
         backup_actions.addStretch(1)
         backup_layout.addLayout(backup_actions)
-        self._backup_status = QLabel("默认保留最近 7 份备份")
+        self._backup_status = QLabel(
+            self._translator.text(
+                "默认保留最近 7 份备份", "The 7 most recent backups are retained by default"
+            )
+        )
         self._backup_status.setObjectName("BodyText")
         backup_layout.addWidget(self._backup_status)
         root.addWidget(backup_card)
 
-        migration_card, migration_layout = _card("数据目录迁移")
+        migration_card, migration_layout = _card(
+            self._translator.text("数据目录迁移", "Data directory migration")
+        )
         migration_hint = QLabel(
-            "先在目标位置生成经哈希校验的完整副本，成功后才发布。当前目录始终保留，不会自动删除。"
+            self._translator.text(
+                "先在目标位置生成经哈希校验的完整副本，成功后才发布。当前目录始终保留，不会自动删除。",
+                "A complete hash-verified copy is created at the destination before it is published. The current directory is always retained and never deleted automatically.",
+            )
         )
         migration_hint.setObjectName("BodyText")
         migration_hint.setWordWrap(True)
         migration_layout.addWidget(migration_hint)
         migration_actions = QHBoxLayout()
-        migrate = Button("准备新数据目录")
+        migrate = Button(self._translator.text("准备新数据目录", "Prepare new data directory"))
         migrate.clicked.connect(self._choose_migration_target)
         migration_actions.addWidget(migrate)
         migration_actions.addStretch(1)
         migration_layout.addLayout(migration_actions)
-        self._migration_status = QLabel("尚未准备迁移")
+        self._migration_status = QLabel(
+            self._translator.text("尚未准备迁移", "No migration prepared")
+        )
         self._migration_status.setObjectName("BodyText")
         migration_layout.addWidget(self._migration_status)
         root.addWidget(migration_card)
 
-        diagnostic_card, diagnostic_layout = _card("诊断包")
+        diagnostic_card, diagnostic_layout = _card(
+            self._translator.text("诊断包", "Diagnostic bundle")
+        )
         diagnostic_hint = QLabel(
-            "导出包含系统版本、数据库计数和二次脱敏日志；不包含密钥、请求正文、产物或数据库内容。"
+            self._translator.text(
+                "导出包含系统版本、数据库计数和二次脱敏日志；不包含密钥、请求正文、产物或数据库内容。",
+                "Exports include system versions, database counts, and a second pass of log redaction. Credentials, request bodies, artifacts, and database contents are excluded.",
+            )
         )
         diagnostic_hint.setObjectName("BodyText")
         diagnostic_hint.setWordWrap(True)
         diagnostic_layout.addWidget(diagnostic_hint)
         diagnostic_actions = QHBoxLayout()
-        export = Button("导出脱敏诊断包")
+        export = Button(
+            self._translator.text("导出脱敏诊断包", "Export redacted diagnostic bundle")
+        )
         export.clicked.connect(lambda: self._start(self._export_diagnostics()))
-        open_diagnostics = Button("打开诊断目录", variant="ghost")
+        open_diagnostics = Button(
+            self._translator.text("打开诊断目录", "Open diagnostics folder"),
+            variant="ghost",
+        )
         open_diagnostics.clicked.connect(lambda: _open_folder(self._data_root / "diagnostics"))
         diagnostic_actions.addWidget(export)
         diagnostic_actions.addWidget(open_diagnostics)
         diagnostic_actions.addStretch(1)
         diagnostic_layout.addLayout(diagnostic_actions)
-        self._diagnostic_status = QLabel("尚未导出诊断包")
+        self._diagnostic_status = QLabel(
+            self._translator.text("尚未导出诊断包", "No diagnostic bundle exported")
+        )
         self._diagnostic_status.setObjectName("BodyText")
         diagnostic_layout.addWidget(self._diagnostic_status)
         root.addWidget(diagnostic_card)
         root.addStretch(1)
+        self.setWidget(canvas)
         QTimer.singleShot(0, lambda: self._start(self._refresh_health()))
 
     async def _save_user_preferences(self) -> None:
@@ -215,37 +257,67 @@ class SettingsPage(QWidget):
             health = await self._service.check_database()
         except Exception as exc:
             self._logger.exception("database_health_check_failed")
-            self._health.setText(f"无法完成检查：{type(exc).__name__}")
-            self._set_health_badge("需要处理", "danger")
+            self._health.setText(
+                self._translator.text(
+                    "无法完成检查：{error}",
+                    "Check failed: {error}",
+                    error=type(exc).__name__,
+                )
+            )
+            self._set_health_badge(self._translator.text("需要处理", "Needs attention"), "danger")
             return
         total_rows = sum(count for _table, count in health.table_counts)
         self._health.setText(
-            f"{len(health.table_counts)} 张表 · {total_rows:,} 行 · "
-            f"{_size(health.size_bytes)} · 版本 {health.revision or '未知'}"
+            self._translator.text(
+                "{tables} 张表 · {rows} 行 · {size} · 版本 {revision}",
+                "{tables} tables · {rows} rows · {size} · revision {revision}",
+                tables=self._translator.integer(len(health.table_counts)),
+                rows=self._translator.integer(total_rows),
+                size=_size(health.size_bytes, self._translator),
+                revision=health.revision or self._translator.text("未知", "Unknown"),
+            )
         )
         self._set_health_badge(
-            "完整性正常" if health.healthy else "需要处理",
+            self._translator.text("完整性正常", "Integrity healthy")
+            if health.healthy
+            else self._translator.text("需要处理", "Needs attention"),
             "success" if health.healthy else "danger",
         )
 
     async def _create_backup(self) -> None:
-        self._backup_status.setText("正在创建一致性备份…")
+        self._backup_status.setText(
+            self._translator.text("正在创建一致性备份…", "Creating a consistent backup…")
+        )
         try:
             result = await self._service.create_backup()
         except Exception as exc:
             self._logger.exception("backup_create_failed")
-            self._backup_status.setText(f"备份失败：{type(exc).__name__}")
+            self._backup_status.setText(
+                self._translator.text(
+                    "备份失败：{error}",
+                    "Backup failed: {error}",
+                    error=type(exc).__name__,
+                )
+            )
             return
         self._backup_status.setText(
-            f"已创建 {result.path.name} · {_size(result.size_bytes)} · 完整性已验证"
+            self._translator.text(
+                "已创建 {name} · {size} · 完整性已验证",
+                "Created {name} · {size} · integrity verified",
+                name=result.path.name,
+                size=_size(result.size_bytes, self._translator),
+            )
         )
 
     def _choose_restore(self) -> None:
         path, _selected = QFileDialog.getOpenFileName(
             self,
-            "选择 AstraWeft 备份",
+            self._translator.text("选择 AstraWeft 备份", "Select AstraWeft Backup"),
             str(self._data_root / "backups"),
-            "SQLite 备份 (*.db);;所有文件 (*)",
+            self._translator.text(
+                "SQLite 备份 (*.db);;所有文件 (*)",
+                "SQLite backup (*.db);;All files (*)",
+            ),
         )
         if path:
             self._start(self._preview_restore(Path(path)))
@@ -255,16 +327,31 @@ class SettingsPage(QWidget):
             preview = await self._service.inspect_restore(path)
         except Exception as exc:
             self._logger.exception("restore_preview_failed")
-            QMessageBox.warning(self, "备份不可用", f"无法验证该备份。\n\n{exc}")
+            QMessageBox.warning(
+                self,
+                self._translator.text("备份不可用", "Backup Unavailable"),
+                self._translator.text(
+                    "无法验证该备份。\n\n{error}",
+                    "The backup could not be verified.\n\n{error}",
+                    error=exc,
+                ),
+            )
             return
         if not preview.can_restore:
-            QMessageBox.warning(self, "备份不可用", _restore_summary(preview))
+            QMessageBox.warning(
+                self,
+                self._translator.text("备份不可用", "Backup Unavailable"),
+                _restore_summary(preview, self._translator),
+            )
             return
         answer = QMessageBox.question(
             self,
-            "确认暂存恢复",
-            _restore_summary(preview) + "\n\n确认后仅暂存备份。当前数据保持不变，重启时才会替换，"
-            "并先自动创建安全备份。",
+            self._translator.text("确认暂存恢复", "Stage Restore?"),
+            _restore_summary(preview, self._translator)
+            + self._translator.text(
+                "\n\n确认后仅暂存备份。当前数据保持不变，重启时才会替换，并先自动创建安全备份。",
+                "\n\nConfirming only stages the backup. Current data remains unchanged until restart, when a safety backup is created before replacement.",
+            ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -274,32 +361,64 @@ class SettingsPage(QWidget):
             await self._service.stage_restore(path)
         except Exception as exc:
             self._logger.exception("restore_stage_failed")
-            QMessageBox.critical(self, "暂存失败", f"当前数据未更改。\n\n{exc}")
+            QMessageBox.critical(
+                self,
+                self._translator.text("暂存失败", "Staging Failed"),
+                self._translator.text(
+                    "当前数据未更改。\n\n{error}",
+                    "Current data was not changed.\n\n{error}",
+                    error=exc,
+                ),
+            )
             return
-        self._backup_status.setText("恢复已暂存；完全退出并重启 AstraWeft 后生效")
+        self._backup_status.setText(
+            self._translator.text(
+                "恢复已暂存；完全退出并重启 AstraWeft 后生效",
+                "Restore staged; fully quit and restart AstraWeft to apply it",
+            )
+        )
         QMessageBox.information(
             self,
-            "恢复已就绪",
-            "当前数据未变更。完全退出 AstraWeft 并重新启动后将安全应用恢复。",
+            self._translator.text("恢复已就绪", "Restore Ready"),
+            self._translator.text(
+                "当前数据未变更。完全退出 AstraWeft 并重新启动后将安全应用恢复。",
+                "Current data is unchanged. Fully quit and restart AstraWeft to apply the restore safely.",
+            ),
         )
 
     async def _export_diagnostics(self) -> None:
-        self._diagnostic_status.setText("正在导出并二次脱敏…")
+        self._diagnostic_status.setText(
+            self._translator.text("正在导出并二次脱敏…", "Exporting with a second redaction pass…")
+        )
         try:
             result = await self._service.export_diagnostics()
         except Exception as exc:
             self._logger.exception("diagnostic_export_failed")
-            self._diagnostic_status.setText(f"导出失败：{type(exc).__name__}")
+            self._diagnostic_status.setText(
+                self._translator.text(
+                    "导出失败：{error}",
+                    "Export failed: {error}",
+                    error=type(exc).__name__,
+                )
+            )
             return
         self._diagnostic_status.setText(
-            f"已导出 {result.path.name} · {_size(result.size_bytes)} · "
-            f"{len(result.included_files)} 个脱敏文件"
+            self._translator.text(
+                "已导出 {name} · {size} · {count} 个脱敏文件",
+                "Exported {name} · {size} · {count} redacted files",
+                name=result.path.name,
+                size=_size(result.size_bytes, self._translator),
+                count=self._translator.integer(len(result.included_files)),
+            )
         )
 
     def _choose_migration_target(self) -> None:
         parent = QFileDialog.getExistingDirectory(
             self,
-            "选择新数据目录的上级位置",
+            self._translator.text(
+                "选择新数据目录的上级位置",
+                "Select Parent Folder for the New Data Directory",
+            ),
             str(self._data_root.parent),
         )
         if not parent:
@@ -312,43 +431,79 @@ class SettingsPage(QWidget):
             preview = await self._service.inspect_data_migration(target)
         except Exception as exc:
             self._logger.exception("data_migration_preview_failed")
-            QMessageBox.warning(self, "无法评估迁移", str(exc))
+            QMessageBox.warning(
+                self,
+                self._translator.text("无法评估迁移", "Unable to Assess Migration"),
+                str(exc),
+            )
             return
         conflicts = "\n".join(f"• {item}" for item in preview.conflicts)
-        summary = (
-            f"目标：{preview.target_root}\n"
-            f"内容：{preview.file_count} 个文件，{_size(preview.required_bytes)}\n"
-            f"可用空间：{_size(preview.available_bytes)}"
+        summary = self._translator.text(
+            "目标：{target}\n内容：{count} 个文件，{required}\n可用空间：{available}",
+            "Target: {target}\nContent: {count} files, {required}\nAvailable space: {available}",
+            target=preview.target_root,
+            count=self._translator.integer(preview.file_count),
+            required=_size(preview.required_bytes, self._translator),
+            available=_size(preview.available_bytes, self._translator),
         )
         if not preview.can_stage:
-            detail = conflicts or "可用空间不足"
-            QMessageBox.warning(self, "目标不可用", f"{summary}\n\n{detail}")
+            detail = conflicts or self._translator.text(
+                "可用空间不足", "Insufficient available space"
+            )
+            QMessageBox.warning(
+                self,
+                self._translator.text("目标不可用", "Target Unavailable"),
+                f"{summary}\n\n{detail}",
+            )
             return
         answer = QMessageBox.question(
             self,
-            "确认准备迁移",
-            summary + "\n\n将创建完整的可启动副本。当前运行目录和数据不会改变。",
+            self._translator.text("确认准备迁移", "Prepare Migration?"),
+            summary
+            + self._translator.text(
+                "\n\n将创建完整的可启动副本。当前运行目录和数据不会改变。",
+                "\n\nA complete bootable copy will be created. The current runtime directory and data will not change.",
+            ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
         if answer is not QMessageBox.StandardButton.Yes:
             return
-        self._migration_status.setText("正在复制并逐文件校验…")
+        self._migration_status.setText(
+            self._translator.text("正在复制并逐文件校验…", "Copying and verifying each file…")
+        )
         try:
             result = await self._service.stage_data_migration(target)
         except Exception as exc:
             self._logger.exception("data_migration_stage_failed")
-            self._migration_status.setText("迁移未发布；当前目录保持不变")
-            QMessageBox.critical(self, "迁移失败", str(exc))
+            self._migration_status.setText(
+                self._translator.text(
+                    "迁移未发布；当前目录保持不变",
+                    "Migration was not published; the current directory is unchanged",
+                )
+            )
+            QMessageBox.critical(
+                self,
+                self._translator.text("迁移失败", "Migration Failed"),
+                str(exc),
+            )
             return
         self._migration_status.setText(
-            f"已校验 {result.file_count} 个文件 · {_size(result.total_bytes)} · "
-            f"新目录：{result.target_root}"
+            self._translator.text(
+                "已校验 {count} 个文件 · {size} · 新目录：{target}",
+                "Verified {count} files · {size} · new directory: {target}",
+                count=self._translator.integer(result.file_count),
+                size=_size(result.total_bytes, self._translator),
+                target=result.target_root,
+            )
         )
         QMessageBox.information(
             self,
-            "新数据目录已准备",
-            "当前目录仍在使用且未被删除。下次启动可选择新目录；确认无误后再手动清理旧目录。",
+            self._translator.text("新数据目录已准备", "New Data Directory Ready"),
+            self._translator.text(
+                "当前目录仍在使用且未被删除。下次启动可选择新目录；确认无误后再手动清理旧目录。",
+                "The current directory remains in use and was not deleted. Select the new directory on next startup and remove the old one manually only after verification.",
+            ),
         )
 
     def _set_health_badge(self, text: str, tone: BadgeTone) -> None:
@@ -381,17 +536,34 @@ def _card(title: str) -> tuple[QFrame, QVBoxLayout]:
     return card, layout
 
 
-def _restore_summary(preview: RestorePreview) -> str:
+def _restore_summary(preview: RestorePreview, translator: Translator | None = None) -> str:
+    translator = translator or Translator()
     row_count = sum(count for _table, count in preview.health.table_counts)
     warnings = "\n".join(f"• {item}" for item in preview.warnings)
-    text = (
-        f"文件：{preview.source_path.name}\n"
-        f"大小：{_size(preview.size_bytes)}\n"
-        f"数据：{len(preview.health.table_counts)} 张表，{row_count:,} 行\n"
-        f"版本：{preview.health.revision or '未知'}\n"
-        f"完整性：{'通过' if preview.health.healthy else '未通过'}"
+    text = translator.text(
+        "文件：{name}\n大小：{size}\n数据：{tables} 张表，{rows} 行\n版本：{revision}\n完整性：{integrity}",
+        "File: {name}\nSize: {size}\nData: {tables} tables, {rows} rows\nRevision: {revision}\nIntegrity: {integrity}",
+        name=preview.source_path.name,
+        size=_size(preview.size_bytes, translator),
+        tables=translator.integer(len(preview.health.table_counts)),
+        rows=translator.integer(row_count),
+        revision=preview.health.revision or translator.text("未知", "Unknown"),
+        integrity=(
+            translator.text("通过", "Passed")
+            if preview.health.healthy
+            else translator.text("未通过", "Failed")
+        ),
     )
-    return text if not warnings else f"{text}\n\n注意：\n{warnings}"
+    return (
+        text
+        if not warnings
+        else translator.text(
+            "{text}\n\n注意：\n{warnings}",
+            "{text}\n\nWarnings:\n{warnings}",
+            text=text,
+            warnings=warnings,
+        )
+    )
 
 
 def _open_folder(path: Path) -> None:
@@ -399,9 +571,10 @@ def _open_folder(path: Path) -> None:
     QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
 
-def _size(value: int) -> str:
+def _size(value: int, translator: Translator | None = None) -> str:
+    translator = translator or Translator()
     if value < 1024:
-        return f"{value} B"
+        return f"{translator.integer(value)} B"
     if value < 1024 * 1024:
-        return f"{value / 1024:.1f} KB"
-    return f"{value / (1024 * 1024):.1f} MB"
+        return f"{translator.decimal(value / 1024)} KB"
+    return f"{translator.decimal(value / (1024 * 1024))} MB"

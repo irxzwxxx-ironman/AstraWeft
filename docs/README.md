@@ -25,6 +25,11 @@
 21. [Phase 6 验收报告](./phase-reports/Phase_6_ComfyUI_Integration.md) — ComfyUI 双向集成、恢复语义、Loopback 安全、Custom Node 与发行包证据。
 22. [本地数据维护实施设计](./operations/Local_Data_Maintenance_Implementation_Design.md) — Phase 7 备份/恢复、目录迁移、回收站、保留与脱敏诊断契约。
 23. [Phase 7 产品完善验收报告](./phase-reports/Phase_7_Product_Hardening.md) — 查询、成本、产物、运维、本地化、无障碍与 10 万/100 万规模门禁证据。
+24. [用户入门](./user/Getting_Started.md) — 安装、Mock 首次任务、真实 Provider、工作流、ComfyUI、备份与快捷键。
+25. [故障排查](./user/Troubleshooting.md) — 启动、凭据、远端不确定状态、ComfyUI、产物和数据库安全恢复。
+26. [Provider 插件开发指南](./development/Provider_Development_Guide.md) — 独立包、manifest、Schema、运行边界、合约测试和 wheel 验证。
+27. [Beta 发布、迁移与回滚政策](./release/Beta_Release_and_Rollback_Policy.md) — SemVer、候选提升、自动备份、升级与二进制/数据库配套回滚。
+28. [Phase 8 本地发行工程报告](./phase-reports/Phase_8_Local_Release_Engineering.md) — macOS 候选包、冷启动、升级回滚、SBOM、许可证与外部门禁。
 
 ## 历史资料
 
@@ -44,8 +49,9 @@
 
 ## 当前阶段
 
-Phase 0–7 已通过 macOS 本地门禁；下一阶段是 Phase 8 开源 Beta 与跨平台发布。
-Phase 7 的数据安全、诊断、插件管理、成本分析、本地化、无障碍、游标分页与规模门禁均已完成。
+Phase 0–7 已通过 macOS 本地门禁。Phase 8 的 macOS 本地发行工程、manifest v2 独立复核与归档
+解包回验已通过，三平台候选工作流已定义；平台签名、Windows/Linux 原生执行、三平台干净机与最终
+恶意软件扫描仍开放，因此尚未宣告 Beta 完成。
 
 已确认：
 
@@ -53,4 +59,4 @@ Phase 7 的数据安全、诊断、插件管理、成本分析、本地化、无
 - 开源许可证为 Apache-2.0。
 - macOS 主开发，Windows 同步 CI，Linux 在 Beta 前纳入。
 - 按阶段质量门禁推进，每阶段完成审查、测试和验收后继续。
-- Git 与远端跨平台 CI 暂不处理；Windows/Linux 状态不得从本地结果推断为通过。
+- GitHub 远端已配置；跨平台 CI 尚待实际推送和原生执行，Windows/Linux 状态不得从本地结果推断为通过。

@@ -24,6 +24,7 @@ from astraweft.application.query import QueryService
 from astraweft.application.tasks import TaskService
 from astraweft.domain.task import RequestLog
 from astraweft.presentation.design_system import fixed_width_font
+from astraweft.presentation.i18n import Translator
 from astraweft.presentation.widgets.controls import Button
 from astraweft.presentation.widgets.data_views import DataTable
 from astraweft.presentation.widgets.feedback import EmptyState
@@ -32,11 +33,17 @@ from astraweft.presentation.widgets.feedback import EmptyState
 class RequestLogsPage(QWidget):
     """Latest redacted request facts; unknown cost is never displayed as zero."""
 
-    def __init__(self, service: TaskService, queries: QueryService | None = None) -> None:
+    def __init__(
+        self,
+        service: TaskService,
+        queries: QueryService | None = None,
+        translator: Translator | None = None,
+    ) -> None:
         super().__init__()
         self.setObjectName("RequestLogsPage")
         self._service = service
         self._queries = queries
+        self._translator = translator or Translator()
         self._next_cursor: str | None = None
         self._logs: tuple[RequestLog, ...] = ()
         self._tasks: set[asyncio.Task[Any]] = set()
@@ -46,27 +53,32 @@ class RequestLogsPage(QWidget):
         root.setSpacing(18)
         header = QHBoxLayout()
         titles = QVBoxLayout()
-        title = QLabel("调用日志")
+        title = QLabel(self._translator.text("调用日志", "Request Logs"))
         title.setObjectName("ContentTitle")
-        self._summary = QLabel("正文默认不落库；这里只显示脱敏摘要")
+        self._summary = QLabel(
+            self._translator.text(
+                "正文默认不落库；这里只显示脱敏摘要",
+                "Request and response bodies are not stored by default; only redacted summaries appear here",
+            )
+        )
         self._summary.setObjectName("BodyText")
         titles.addWidget(title)
         titles.addWidget(self._summary)
         header.addLayout(titles)
         header.addStretch(1)
-        refresh = Button("刷新", variant="ghost")
+        refresh = Button(self._translator.text("刷新", "Refresh"), variant="ghost")
         refresh.clicked.connect(self.request_refresh)
-        self._load_more = Button("加载更多", variant="ghost")
+        self._load_more = Button(self._translator.text("加载更多", "Load more"), variant="ghost")
         self._load_more.clicked.connect(lambda: self._start(self._load_next()))
         self._load_more.hide()
         header.addWidget(self._load_more)
         header.addWidget(refresh)
         root.addLayout(header)
-        self._table = DataTable("调用日志")
+        self._table = DataTable(self._translator.text("调用日志", "Request logs"))
         self._table.clicked.connect(lambda index: self._show_detail(index.row()))
         self._detail = QPlainTextEdit()
         self._detail.setObjectName("SchemaViewer")
-        self._detail.setAccessibleName("调用日志详情")
+        self._detail.setAccessibleName(self._translator.text("调用日志详情", "Request log detail"))
         self._detail.setFont(fixed_width_font())
         self._detail.setReadOnly(True)
         splitter = QSplitter(Qt.Orientation.Vertical)
@@ -76,7 +88,14 @@ class RequestLogsPage(QWidget):
         splitter.setStretchFactor(1, 2)
         self._splitter = splitter
         root.addWidget(splitter, 1)
-        self._empty = EmptyState("≡", "还没有调用日志", "从 Playground 运行任务后会自动记录。")
+        self._empty = EmptyState(
+            "≡",
+            self._translator.text("还没有调用日志", "No request logs yet"),
+            self._translator.text(
+                "从 Playground 运行任务后会自动记录。",
+                "Logs are recorded automatically after a task runs from the Playground.",
+            ),
+        )
         self._empty.hide()
         root.addWidget(self._empty, 1)
         QTimer.singleShot(0, self.request_refresh)
@@ -95,7 +114,9 @@ class RequestLogsPage(QWidget):
                 self._next_cursor = page.next_cursor
         except Exception:
             self._logger.exception("request_logs_load_failed")
-            self._summary.setText("调用日志读取失败")
+            self._summary.setText(
+                self._translator.text("调用日志读取失败", "Unable to load request logs")
+            )
             return
         self._render()
 
@@ -109,7 +130,9 @@ class RequestLogsPage(QWidget):
             )
         except Exception:
             self._logger.exception("request_logs_next_page_failed")
-            self._summary.setText("加载更多日志失败")
+            self._summary.setText(
+                self._translator.text("加载更多日志失败", "Unable to load more request logs")
+            )
             return
         self._logs += page.items
         self._next_cursor = page.next_cursor
@@ -117,24 +140,40 @@ class RequestLogsPage(QWidget):
 
     def _render(self) -> None:
         unknown = sum(log.amount_micros is None for log in self._logs)
-        self._summary.setText(
-            f"显示最近 {len(self._logs)} 条脱敏记录"
-            + (f"  ·  {unknown} 条成本未知" if unknown else "")
+        summary = self._translator.text(
+            "显示最近 {count} 条脱敏记录",
+            "Showing {count} recent redacted records",
+            count=self._translator.integer(len(self._logs)),
         )
+        if unknown:
+            summary += self._translator.text(
+                "  ·  {count} 条成本未知",
+                "  ·  {count} with unknown cost",
+                count=self._translator.integer(unknown),
+            )
+        self._summary.setText(summary)
         self._splitter.setVisible(bool(self._logs))
         self._empty.setVisible(not self._logs)
         self._load_more.setVisible(self._next_cursor is not None)
         model = QStandardItemModel(0, 7, self)
         model.setHorizontalHeaderLabels(
-            ["时间", "操作", "结果", "耗时", "成本", "Provider", "Trace ID"]
+            [
+                self._translator.text("时间", "Time"),
+                self._translator.text("操作", "Operation"),
+                self._translator.text("结果", "Result"),
+                self._translator.text("耗时", "Latency"),
+                self._translator.text("成本", "Cost"),
+                "Provider",
+                "Trace ID",
+            ]
         )
         for log in self._logs:
             values = (
                 log.created_at.astimezone().strftime("%m-%d %H:%M:%S"),
                 log.operation,
-                log.error_code or "成功",
+                log.error_code or self._translator.text("成功", "Succeeded"),
                 f"{log.latency_ms} ms",
-                _cost(log),
+                _cost(log, self._translator),
                 log.provider_id,
                 log.trace_id,
             )
@@ -172,7 +211,7 @@ class RequestLogsPage(QWidget):
                     "request_summary": log.request_summary,
                     "response_summary": log.response_summary,
                     "usage": log.usage,
-                    "cost": _cost(log),
+                    "cost": _cost(log, self._translator),
                     "error_code": log.error_code,
                     "trace_id": log.trace_id,
                 }
@@ -190,10 +229,11 @@ class RequestLogsPage(QWidget):
         task.add_done_callback(self._tasks.discard)
 
 
-def _cost(log: RequestLog) -> str:
+def _cost(log: RequestLog, translator: Translator | None = None) -> str:
+    translator = translator or Translator()
     if log.amount_micros is None or log.currency is None:
-        return "未知"
-    return f"{log.currency} {log.amount_micros / 1_000_000:.6f}"
+        return translator.text("未知", "Unknown")
+    return translator.money(log.currency, log.amount_micros)
 
 
 def _json_text(value: object) -> str:

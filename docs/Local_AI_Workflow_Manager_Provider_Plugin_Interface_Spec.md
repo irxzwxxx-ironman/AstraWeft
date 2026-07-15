@@ -487,6 +487,30 @@ class CancelResult:
 
 Core 拒绝把标记为 secret 的字段写入普通 settings。插件升级改变 settings 结构时通过 `migrate_settings` 执行纯函数迁移；凭据迁移必须要求用户重新授权或由 Secret Store 的显式操作完成。
 
+### 13.1 Schema 文案本地化扩展
+
+插件仍以标准 JSON Schema 的 `title` / `description` 作为默认文案。需要适配 AstraWeft
+支持的其他界面语言时，可在字段 Schema 上添加非执行型扩展 `x-astraweft-i18n`：
+
+```json
+{
+  "type": "string",
+  "title": "故障模式",
+  "description": "仅用于本地测试。",
+  "x-astraweft-i18n": {
+    "en_US": {
+      "title": "Failure mode",
+      "description": "For local testing only."
+    }
+  }
+}
+```
+
+- 当前稳定 locale key 为 `zh_CN` 与 `en_US`；没有匹配项时回退到标准关键字。
+- 扩展只允许纯文本 `title` 和 `description`，不得包含 HTML、脚本、QSS 或可执行 UI 定义。
+- 本地化内容不参与参数验证、字段名、持久化、工作流快照或 checksum 语义。
+- 插件应至少为其默认语言提供标准 `title`；内置插件必须通过中英文表单渲染测试。
+
 ## 14. 插件生命周期
 
 ```text
@@ -520,7 +544,7 @@ Discover manifest
 SDK 提供 `ProviderContractSuite`，每个插件必须通过：
 
 1. manifest 与 descriptor 一致性。
-2. Schema 合法性及示例参数验证。
+2. Schema 合法性、示例参数验证及声明语言的表单文案回退。
 3. 健康检查成功、认证失败和超时映射。
 4. 同步 submit 成功输出。
 5. 异步 submit → poll → success。

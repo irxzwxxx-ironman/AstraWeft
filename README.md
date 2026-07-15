@@ -2,8 +2,9 @@
 
 Local-first desktop AI provider, task, and workflow manager.
 
-> Project status: pre-alpha. Phase 0–7 have passed their macOS local gates. Phase 8 packaging,
-> clean-machine installation, and cross-platform release work remain before public beta.
+> Project status: pre-alpha. Phase 0–7 have passed their macOS local gates. Phase 8 macOS local
+> release engineering is passing; signing, clean-machine installation, and native Windows/Linux
+> release gates remain before public beta.
 
 ## Vision
 
@@ -21,11 +22,14 @@ The product is designed around six commitments:
 
 ## Current phase
 
-Phase 0 through Phase 7 have passed their macOS local gates; Phase 8 is next.
-Remote Git hosting and cross-OS CI
-execution remain explicitly deferred. AstraWeft runs Mock, OpenAI, Runway and ComfyUI work through
-durable local ledgers, keeps credentials in the OS keyring, and exposes Provider tasks to ComfyUI
-through a token-protected `127.0.0.1` gateway. Product hardening is tracked in Phase 7 of the
+Phase 0 through Phase 7 have passed their macOS local gates. Phase 8 now has a working macOS arm64
+desktop bundle, isolated cold-start and upgrade/rollback smokes, wheel validation, SBOM, license
+inventory, a zero-known-vulnerability runtime audit, independently verified payload manifests, and
+an archivable three-platform release-candidate workflow. Remote native CI evidence, platform signing,
+clean-machine validation and native Windows/Linux execution remain open. AstraWeft runs Mock,
+OpenAI, Runway and ComfyUI work through durable local ledgers, keeps credentials in the OS keyring
+when available with a session-only safe fallback, and exposes Provider tasks to ComfyUI through a
+token-protected `127.0.0.1` gateway. Release hardening is tracked in Phase 8 of the
 [product roadmap](docs/Product_Implementation_Roadmap.md).
 
 ## Documentation
@@ -47,6 +51,11 @@ through a token-protected `127.0.0.1` gateway. Product hardening is tracked in P
 - [Phase 6 local gate report](docs/phase-reports/Phase_6_ComfyUI_Integration.md)
 - [Phase 7 local data maintenance design](docs/operations/Local_Data_Maintenance_Implementation_Design.md)
 - [Phase 7 product hardening gate report](docs/phase-reports/Phase_7_Product_Hardening.md)
+- [User getting started guide](docs/user/Getting_Started.md)
+- [Troubleshooting](docs/user/Troubleshooting.md)
+- [Provider development guide](docs/development/Provider_Development_Guide.md)
+- [Beta release and rollback policy](docs/release/Beta_Release_and_Rollback_Policy.md)
+- [Phase 8 local release engineering report](docs/phase-reports/Phase_8_Local_Release_Engineering.md)
 
 ## Development
 
@@ -71,6 +80,17 @@ Start the local desktop application:
 uv run astraweft
 ```
 
+Build and smoke-test the local desktop candidate:
+
+```bash
+uv sync --locked --all-groups
+uv run python scripts/build_desktop.py
+uv run python scripts/verify_release_manifest.py --dist-dir dist/desktop \
+  --archive-dir build/phase8/release-artifacts
+uv run python scripts/smoke_desktop.py --expected-revision 20260715_0007
+uv run python scripts/smoke_upgrade.py
+```
+
 Use an isolated data root while developing or testing:
 
 ```bash
@@ -87,8 +107,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change.
 
 ## Supported platforms
 
-- macOS: primary development platform.
-- Windows: CI is defined; execution is deferred until Git hosting is enabled.
+- macOS: primary development platform; local arm64 candidate build and lifecycle gates pass.
+- Windows: CI is defined; native execution evidence is still required.
 - Linux: architecture-compatible now; full beta support is required before public beta.
 
 ## Security and privacy

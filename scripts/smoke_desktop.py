@@ -40,6 +40,39 @@ def database_revision(database_path: Path) -> str | None:
     return None if row is None else str(row[0])
 
 
+def gateway_startup_evidence(log_path: Path) -> dict[str, Any]:
+    """Require a successful gateway start and return its non-sensitive state."""
+    if not log_path.is_file():
+        raise RuntimeError(f"packaged launch did not create {log_path}")
+    records = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    if any(record.get("message") == "loopback_gateway_start_failed" for record in records):
+        raise RuntimeError("packaged launch reported a loopback gateway startup failure")
+    ready = next(
+        (
+            record
+            for record in reversed(records)
+            if record.get("message") == "loopback_gateway_ready"
+        ),
+        None,
+    )
+    if ready is None:
+        raise RuntimeError("packaged launch did not report a ready loopback gateway")
+    context = ready.get("context")
+    if not isinstance(context, dict):
+        raise RuntimeError("packaged gateway readiness evidence is malformed")
+    persistent = context.get("secure_storage_persistent")
+    port = context.get("port")
+    if not isinstance(persistent, bool):
+        raise RuntimeError("packaged gateway did not report credential storage mode")
+    if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+        raise RuntimeError("packaged gateway did not report a bound loopback port")
+    return {
+        "status": "ready",
+        "port": port,
+        "secure_storage_persistent": persistent,
+    }
+
+
 def _run_checked(
     command: list[str], environment: dict[str, str]
 ) -> subprocess.CompletedProcess[str]:
@@ -62,7 +95,12 @@ def _run_checked(
         raise RuntimeError(f"packaged command timed out: {details}") from error
 
 
-def run_smoke(dist_root: Path, expected_revision: str | None = None) -> dict[str, Any]:
+def run_smoke(
+    dist_root: Path,
+    expected_revision: str | None = None,
+    *,
+    require_persistent_secrets: bool = False,
+) -> dict[str, Any]:
     """Check version output, first launch, shutdown, and database initialization."""
     executable = packaged_executable(dist_root.resolve())
     environment = os.environ.copy()
@@ -78,6 +116,8 @@ def run_smoke(dist_root: Path, expected_revision: str | None = None) -> dict[str
                     str(data_root),
                     "--quit-after-ms",
                     "1200",
+                    "--gateway-port",
+                    "0",
                 ],
                 environment,
             )
@@ -92,6 +132,9 @@ def run_smoke(dist_root: Path, expected_revision: str | None = None) -> dict[str
             raise RuntimeError(f"packaged launch did not initialize {database}")
         if expected_revision is not None and revision != expected_revision:
             raise RuntimeError(f"expected revision {expected_revision}, got {revision}")
+        gateway = gateway_startup_evidence(data_root / "logs" / "astraweft.jsonl")
+        if require_persistent_secrets and not gateway["secure_storage_persistent"]:
+            raise RuntimeError("packaged launch did not obtain persistent OS credential storage")
         return {
             "status": "passed",
             "platform": platform.system().lower(),
@@ -99,6 +142,7 @@ def run_smoke(dist_root: Path, expected_revision: str | None = None) -> dict[str
             "executable": str(executable),
             "version_output": version_result.stdout.strip() or version_result.stderr.strip(),
             "database_revision": revision,
+            "loopback_gateway": gateway,
             "launch_stdout": launch_result.stdout.strip(),
             "launch_stderr": launch_result.stderr.strip(),
         }
@@ -108,9 +152,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dist-dir", type=Path, default=DEFAULT_DIST)
     parser.add_argument("--expected-revision")
+    parser.add_argument(
+        "--require-persistent-secrets",
+        action="store_true",
+        help="fail unless the packaged app can use the native credential store",
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    report = run_smoke(args.dist_dir, args.expected_revision)
+    report = run_smoke(
+        args.dist_dir,
+        args.expected_revision,
+        require_persistent_secrets=args.require_persistent_secrets,
+    )
     rendered = json.dumps(report, indent=2) + "\n"
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)

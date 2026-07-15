@@ -11,6 +11,7 @@ SETTINGS_SCHEMA: Mapping[str, object] = {
         "mode": {
             "type": "string",
             "title": "故障模式",
+            "x-astraweft-i18n": {"en_US": {"title": "Failure mode"}},
             "enum": [
                 "healthy",
                 "authentication_error",
@@ -25,18 +26,21 @@ SETTINGS_SCHEMA: Mapping[str, object] = {
         "response_mode": {
             "type": "string",
             "title": "任务模式",
+            "x-astraweft-i18n": {"en_US": {"title": "Task mode"}},
             "enum": ["completed", "accepted"],
             "default": "completed",
         },
         "catalog_revision": {
             "type": "integer",
             "title": "模型目录版本",
+            "x-astraweft-i18n": {"en_US": {"title": "Model catalog revision"}},
             "enum": [1, 2],
             "default": 1,
         },
         "delay_ms": {
             "type": "integer",
             "title": "模拟延迟 (毫秒)",
+            "x-astraweft-i18n": {"en_US": {"title": "Simulated latency (ms)"}},
             "minimum": 0,
             "maximum": 250,
             "default": 0,

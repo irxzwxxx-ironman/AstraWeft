@@ -13,7 +13,7 @@ class Colors:
     BORDER_STRONG = "#323B4E"
     TEXT = "#F4F7FC"
     TEXT_MUTED = "#96A0B5"
-    TEXT_DIM = "#687287"
+    TEXT_DIM = "#78849A"
     PRIMARY = "#7C6CFF"
     PRIMARY_BRIGHT = "#9B8CFF"
     CYAN = "#43C8FF"

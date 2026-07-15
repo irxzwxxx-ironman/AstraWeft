@@ -30,6 +30,7 @@ from astraweft.application.tasks import TaskService
 from astraweft.domain.task import Artifact
 from astraweft.ports.query import ArtifactQuery
 from astraweft.presentation.design_system import fixed_width_font
+from astraweft.presentation.i18n import Translator
 from astraweft.presentation.thumbnails import ThumbnailCache
 from astraweft.presentation.widgets.controls import Button, SelectInput
 from astraweft.presentation.widgets.data_views import DataTable
@@ -45,12 +46,14 @@ class ArtifactsPage(QWidget):
         root_path: Path,
         queries: QueryService | None = None,
         thumbnails: ThumbnailCache | None = None,
+        translator: Translator | None = None,
     ) -> None:
         super().__init__()
         self.setObjectName("ArtifactsPage")
         self._service = service
         self._root_path = root_path
         self._queries = queries
+        self._translator = translator or Translator()
         self._thumbnails = thumbnails or ThumbnailCache(root_path.parent / "cache" / "thumbnails")
         self._next_cursor: str | None = None
         self._artifacts: tuple[Artifact, ...] = ()
@@ -62,28 +65,40 @@ class ArtifactsPage(QWidget):
         root.setSpacing(18)
         header = QHBoxLayout()
         titles = QVBoxLayout()
-        title = QLabel("本地产物库")
+        title = QLabel(self._translator.text("本地产物库", "Local Artifact Library"))
         title.setObjectName("ContentTitle")
-        self._summary = QLabel("文件使用 SHA-256 校验，并保留来源 Task")
+        self._summary = QLabel(
+            self._translator.text(
+                "文件使用 SHA-256 校验，并保留来源 Task",
+                "Files are verified with SHA-256 and retain their source task",
+            )
+        )
         self._summary.setObjectName("BodyText")
         titles.addWidget(title)
         titles.addWidget(self._summary)
         header.addLayout(titles)
         header.addStretch(1)
-        folder = Button("打开产物目录", variant="ghost")
+        folder = Button(
+            self._translator.text("打开产物目录", "Open artifact folder"),
+            variant="ghost",
+        )
         folder.clicked.connect(self._open_folder)
-        self._toggle = Button("查看回收站", variant="ghost")
+        self._toggle = Button(self._translator.text("查看回收站", "View trash"), variant="ghost")
         self._toggle.clicked.connect(self._toggle_trash)
-        self._lifecycle = Button("移入回收站", variant="ghost")
+        self._lifecycle = Button(
+            self._translator.text("移入回收站", "Move to trash"), variant="ghost"
+        )
         self._lifecycle.setEnabled(False)
         self._lifecycle.clicked.connect(self._request_lifecycle_action)
-        self._purge = Button("永久删除", variant="danger")
+        self._purge = Button(
+            self._translator.text("永久删除", "Delete permanently"), variant="danger"
+        )
         self._purge.setEnabled(False)
         self._purge.hide()
         self._purge.clicked.connect(self._request_purge)
-        refresh = Button("刷新", variant="ghost")
+        refresh = Button(self._translator.text("刷新", "Refresh"), variant="ghost")
         refresh.clicked.connect(self.request_refresh)
-        self._load_more = Button("加载更多", variant="ghost")
+        self._load_more = Button(self._translator.text("加载更多", "Load more"), variant="ghost")
         self._load_more.clicked.connect(lambda: self._start(self._load_next()))
         self._load_more.hide()
         header.addWidget(folder)
@@ -96,21 +111,29 @@ class ArtifactsPage(QWidget):
 
         filters = QHBoxLayout()
         filters.setSpacing(10)
-        filter_label = QLabel("筛选")
+        filter_label = QLabel(self._translator.text("筛选", "Filters"))
         filter_label.setObjectName("SectionTitle")
-        self._kind_filter = SelectInput("按产物类型筛选")
-        for label, kind in (
-            ("全部类型", None),
-            ("图片", "IMAGE"),
-            ("视频", "VIDEO"),
-            ("音频", "AUDIO"),
-            ("文本", "TEXT"),
-            ("JSON", "JSON"),
+        self._kind_filter = SelectInput(
+            self._translator.text("按产物类型筛选", "Filter by artifact type")
+        )
+        for chinese, english, kind in (
+            ("全部类型", "All types", None),
+            ("图片", "Image", "IMAGE"),
+            ("视频", "Video", "VIDEO"),
+            ("音频", "Audio", "AUDIO"),
+            ("文本", "Text", "TEXT"),
+            ("JSON", "JSON", "JSON"),
         ):
-            self._kind_filter.addItem(label, kind)
-        self._period_filter = SelectInput("按产物创建时间筛选")
-        for label, days in (("全部时间", None), ("最近 7 天", 7), ("最近 30 天", 30)):
-            self._period_filter.addItem(label, days)
+            self._kind_filter.addItem(self._translator.text(chinese, english), kind)
+        self._period_filter = SelectInput(
+            self._translator.text("按产物创建时间筛选", "Filter by creation time")
+        )
+        for chinese, english, days in (
+            ("全部时间", "All time", None),
+            ("最近 7 天", "Last 7 days", 7),
+            ("最近 30 天", "Last 30 days", 30),
+        ):
+            self._period_filter.addItem(self._translator.text(chinese, english), days)
         self._kind_filter.currentIndexChanged.connect(self.request_refresh)
         self._period_filter.currentIndexChanged.connect(self.request_refresh)
         filters.addWidget(filter_label)
@@ -119,7 +142,7 @@ class ArtifactsPage(QWidget):
         filters.addStretch(1)
         root.addLayout(filters)
 
-        self._table = DataTable("本地产物")
+        self._table = DataTable(self._translator.text("本地产物", "Local artifacts"))
         self._table.clicked.connect(lambda index: self._show_detail(index.row()))
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter.addWidget(self._table)
@@ -128,7 +151,14 @@ class ArtifactsPage(QWidget):
         self._splitter.setStretchFactor(1, 2)
         self._splitter.setSizes([760, 420])
         root.addWidget(self._splitter, 1)
-        self._empty = EmptyState("▦", "还没有产物", "图片、视频、音频、文本和 JSON 会保存在这里。")
+        self._empty = EmptyState(
+            "▦",
+            self._translator.text("还没有产物", "No artifacts yet"),
+            self._translator.text(
+                "图片、视频、音频、文本和 JSON 会保存在这里。",
+                "Images, video, audio, text, and JSON are saved here.",
+            ),
+        )
         self._empty.hide()
         root.addWidget(self._empty, 1)
         QTimer.singleShot(0, self.request_refresh)
@@ -153,7 +183,7 @@ class ArtifactsPage(QWidget):
                 self._next_cursor = None
         except Exception:
             self._logger.exception("artifacts_load_failed")
-            self._summary.setText("产物读取失败")
+            self._summary.setText(self._translator.text("产物读取失败", "Unable to load artifacts"))
             return
         self._render()
 
@@ -168,7 +198,9 @@ class ArtifactsPage(QWidget):
             )
         except Exception:
             self._logger.exception("artifacts_next_page_failed")
-            self._summary.setText("加载更多产物失败")
+            self._summary.setText(
+                self._translator.text("加载更多产物失败", "Unable to load more artifacts")
+            )
             return
         self._artifacts += page.items
         self._next_cursor = page.next_cursor
@@ -176,20 +208,39 @@ class ArtifactsPage(QWidget):
 
     def _render(self) -> None:
         size = sum(item.size_bytes for item in self._artifacts)
-        location = "回收站产物" if self._showing_trash else "已校验产物"
-        self._summary.setText(f"显示最近 {len(self._artifacts)} 个{location}  ·  {_size(size)}")
+        location = (
+            self._translator.text("回收站产物", "trashed artifacts")
+            if self._showing_trash
+            else self._translator.text("已校验产物", "verified artifacts")
+        )
+        self._summary.setText(
+            self._translator.text(
+                "显示最近 {count} 个{location}  ·  {size}",
+                "Showing {count} recent {location}  ·  {size}",
+                count=self._translator.integer(len(self._artifacts)),
+                location=location,
+                size=_size(size, self._translator),
+            )
+        )
         self._splitter.setVisible(bool(self._artifacts))
         self._empty.setVisible(not self._artifacts)
         self._load_more.setVisible(self._next_cursor is not None)
         model = QStandardItemModel(0, 6, self)
         model.setHorizontalHeaderLabels(
-            ["类型", "文件", "大小", "SHA-256", "来源 Task", "创建时间"]
+            [
+                self._translator.text("类型", "Type"),
+                self._translator.text("文件", "File"),
+                self._translator.text("大小", "Size"),
+                "SHA-256",
+                self._translator.text("来源 Task", "Source task"),
+                self._translator.text("创建时间", "Created"),
+            ]
         )
         for artifact in self._artifacts:
             values = (
                 artifact.kind,
                 artifact.relative_path,
-                _size(artifact.size_bytes),
+                _size(artifact.size_bytes, self._translator),
                 artifact.sha256[:16] + "…",
                 artifact.task_id or "—",
                 artifact.created_at.astimezone().strftime("%m-%d %H:%M:%S"),
@@ -223,23 +274,27 @@ class ArtifactsPage(QWidget):
         layout.setSpacing(10)
         eyebrow = QLabel("ARTIFACT PREVIEW")
         eyebrow.setObjectName("HeroEyebrow")
-        self._detail_title = QLabel("选择一个产物")
+        self._detail_title = QLabel(self._translator.text("选择一个产物", "Select an artifact"))
         self._detail_title.setObjectName("CardTitle")
-        self._preview = QLabel("选中产物后显示预览")
+        self._preview = QLabel(
+            self._translator.text("选中产物后显示预览", "Select an artifact to preview it")
+        )
         self._preview.setObjectName("ArtifactPreview")
-        self._preview.setAccessibleName("产物预览")
+        self._preview.setAccessibleName(self._translator.text("产物预览", "Artifact preview"))
         self._preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._preview.setMinimumHeight(210)
         self._preview.setWordWrap(True)
         self._metadata = QPlainTextEdit()
         self._metadata.setObjectName("SchemaViewer")
-        self._metadata.setAccessibleName("产物元数据与来源血缘")
+        self._metadata.setAccessibleName(
+            self._translator.text("产物元数据与来源血缘", "Artifact metadata and provenance")
+        )
         self._metadata.setFont(fixed_width_font())
         self._metadata.setReadOnly(True)
         actions = QHBoxLayout()
-        self._open_file = Button("打开文件", variant="ghost")
+        self._open_file = Button(self._translator.text("打开文件", "Open file"), variant="ghost")
         self._open_file.clicked.connect(self._open_selected_file)
-        self._copy_path = Button("复制路径", variant="ghost")
+        self._copy_path = Button(self._translator.text("复制路径", "Copy path"), variant="ghost")
         self._copy_path.clicked.connect(self._copy_selected_path)
         actions.addWidget(self._open_file)
         actions.addWidget(self._copy_path)
@@ -283,9 +338,21 @@ class ArtifactsPage(QWidget):
         if pixmap is not None:
             self._preview.setPixmap(pixmap)
         elif not exists:
-            self._preview.setText("文件已在外部移动，或当前位于回收站")
+            self._preview.setText(
+                self._translator.text(
+                    "文件已在外部移动，或当前位于回收站",
+                    "The file was moved externally or is currently in the trash",
+                )
+            )
         else:
-            self._preview.setText(f"{artifact.kind}\n{artifact.mime_type}\n当前类型不提供内联预览")
+            self._preview.setText(
+                self._translator.text(
+                    "{kind}\n{mime}\n当前类型不提供内联预览",
+                    "{kind}\n{mime}\nInline preview is unavailable for this type",
+                    kind=artifact.kind,
+                    mime=artifact.mime_type,
+                )
+            )
         self._metadata.setPlainText(
             json.dumps(
                 {
@@ -331,8 +398,16 @@ class ArtifactsPage(QWidget):
 
     def _toggle_trash(self) -> None:
         self._showing_trash = not self._showing_trash
-        self._toggle.setText("返回产物库" if self._showing_trash else "查看回收站")
-        self._lifecycle.setText("恢复产物" if self._showing_trash else "移入回收站")
+        self._toggle.setText(
+            self._translator.text("返回产物库", "Back to library")
+            if self._showing_trash
+            else self._translator.text("查看回收站", "View trash")
+        )
+        self._lifecycle.setText(
+            self._translator.text("恢复产物", "Restore artifact")
+            if self._showing_trash
+            else self._translator.text("移入回收站", "Move to trash")
+        )
         self._purge.setVisible(self._showing_trash)
         self.request_refresh()
 
@@ -360,24 +435,44 @@ class ArtifactsPage(QWidget):
         try:
             preview = await self._service.preview_artifact_trash(artifact.id)
         except Exception as exc:
-            self._handle_error("无法读取产物影响", exc)
+            self._handle_error(
+                self._translator.text("无法读取产物影响", "Unable to inspect artifact impact"),
+                exc,
+            )
             return
         if self._showing_trash:
-            action = "恢复"
-            detail = "文件将返回原目录，Task 和工作流血缘保持不变。"
+            action = self._translator.text("恢复", "Restore")
+            detail = self._translator.text(
+                "文件将返回原目录，Task 和工作流血缘保持不变。",
+                "The file returns to its original folder while task and workflow provenance remain unchanged.",
+            )
         else:
-            action = "移入回收站"
+            action = self._translator.text("移入回收站", "Move to trash")
             references = []
             if preview.task_reference:
-                references.append("1 个 Task 来源")
+                references.append(self._translator.text("1 个 Task 来源", "1 source task"))
             if preview.workflow_reference_count:
-                references.append(f"{preview.workflow_reference_count} 个工作流端口")
-            reference_text = "、".join(references) if references else "无持久引用"
-            detail = f"引用：{reference_text}。可在回收站恢复，血缘记录不会删除。"
+                references.append(
+                    self._translator.text(
+                        "{count} 个工作流端口",
+                        "{count} workflow ports",
+                        count=self._translator.integer(preview.workflow_reference_count),
+                    )
+                )
+            reference_text = (
+                self._translator.text("、", ", ").join(references)
+                if references
+                else self._translator.text("无持久引用", "no persistent references")
+            )
+            detail = self._translator.text(
+                "引用：{references}。可在回收站恢复，血缘记录不会删除。",
+                "References: {references}. The artifact can be restored from trash and provenance records are retained.",
+                references=reference_text,
+            )
         answer = QMessageBox.question(
             self,
-            f"确认{action}",
-            f"{artifact.relative_path}\n{_size(artifact.size_bytes)}\n\n{detail}",
+            self._translator.text("确认{action}", "Confirm {action}", action=action),
+            f"{artifact.relative_path}\n{_size(artifact.size_bytes, self._translator)}\n\n{detail}",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -390,7 +485,10 @@ class ArtifactsPage(QWidget):
                 await self._service.trash_artifact(artifact.id)
             await self._refresh()
         except Exception as exc:
-            self._handle_error(f"{action}失败", exc)
+            self._handle_error(
+                self._translator.text("{action}失败", "{action} failed", action=action),
+                exc,
+            )
 
     def _request_purge(self) -> None:
         artifact = self._selected_artifact()
@@ -402,20 +500,31 @@ class ArtifactsPage(QWidget):
         try:
             preview = await self._service.preview_artifact_trash(artifact.id)
         except Exception as exc:
-            self._handle_error("无法读取产物影响", exc)
+            self._handle_error(
+                self._translator.text("无法读取产物影响", "Unable to inspect artifact impact"),
+                exc,
+            )
             return
         if not preview.can_purge:
             QMessageBox.warning(
                 self,
-                "不能永久删除",
-                f"产物仍被 {preview.workflow_reference_count} 个工作流端口引用，请先解除引用。",
+                self._translator.text("不能永久删除", "Cannot Delete Permanently"),
+                self._translator.text(
+                    "产物仍被 {count} 个工作流端口引用，请先解除引用。",
+                    "The artifact is still referenced by {count} workflow ports. Remove those references first.",
+                    count=self._translator.integer(preview.workflow_reference_count),
+                ),
             )
             return
         answer = QMessageBox.warning(
             self,
-            "永久删除产物",
-            f"{artifact.relative_path}\n{_size(artifact.size_bytes)}\n\n"
-            "该操作不可撤销，但 Task 记录仍保留。确定继续？",
+            self._translator.text("永久删除产物", "Delete Artifact Permanently"),
+            self._translator.text(
+                "{path}\n{size}\n\n该操作不可撤销，但 Task 记录仍保留。确定继续？",
+                "{path}\n{size}\n\nThis cannot be undone, although the task record is retained. Continue?",
+                path=artifact.relative_path,
+                size=_size(artifact.size_bytes, self._translator),
+            ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -426,7 +535,10 @@ class ArtifactsPage(QWidget):
             self._thumbnails.invalidate(artifact)
             await self._refresh()
         except Exception as exc:
-            self._handle_error("永久删除失败", exc)
+            self._handle_error(
+                self._translator.text("永久删除失败", "Permanent deletion failed"),
+                exc,
+            )
 
     def _handle_error(self, title: str, exc: Exception) -> None:
         self._logger.exception("artifact_lifecycle_failed", exc_info=exc)
@@ -443,12 +555,13 @@ class ArtifactsPage(QWidget):
         task.add_done_callback(self._tasks.discard)
 
 
-def _size(value: int) -> str:
+def _size(value: int, translator: Translator | None = None) -> str:
+    translator = translator or Translator()
     if value < 1024:
-        return f"{value} B"
+        return f"{translator.integer(value)} B"
     if value < 1024 * 1024:
-        return f"{value / 1024:.1f} KB"
-    return f"{value / (1024 * 1024):.1f} MB"
+        return f"{translator.decimal(value / 1024)} KB"
+    return f"{translator.decimal(value / (1024 * 1024))} MB"
 
 
 def _plain(value: object) -> object:

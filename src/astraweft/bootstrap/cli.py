@@ -33,17 +33,34 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--gateway-port",
+        type=_port,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Parse process arguments and start the desktop application."""
     arguments = build_parser().parse_args(argv)
-    return run_desktop(arguments.data_dir, quit_after_ms=arguments.quit_after_ms)
+    return run_desktop(
+        arguments.data_dir,
+        quit_after_ms=arguments.quit_after_ms,
+        gateway_port_override=arguments.gateway_port,
+    )
 
 
 def _non_negative_int(value: str) -> int:
     parsed = int(value)
     if parsed < 0:
         raise argparse.ArgumentTypeError("value must be non-negative")
+    return parsed
+
+
+def _port(value: str) -> int:
+    parsed = int(value)
+    if not 0 <= parsed <= 65535:
+        raise argparse.ArgumentTypeError("port must be between 0 and 65535")
     return parsed

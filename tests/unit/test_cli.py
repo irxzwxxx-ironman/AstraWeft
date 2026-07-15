@@ -13,7 +13,9 @@ from astraweft.bootstrap.cli import build_parser, main
 def test_main_starts_desktop_with_default_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "astraweft.bootstrap.cli.run_desktop",
-        lambda path, *, quit_after_ms: 23 if path is None and quit_after_ms is None else 1,
+        lambda path, *, quit_after_ms, gateway_port_override: (
+            23 if path is None and quit_after_ms is None and gateway_port_override is None else 1
+        ),
     )
 
     assert main([]) == 23
@@ -24,8 +26,13 @@ def test_main_forwards_an_isolated_data_directory(
 ) -> None:
     captured: list[object] = []
 
-    def capture_path(path: object, *, quit_after_ms: int | None) -> int:
-        captured.extend((path, quit_after_ms))
+    def capture_path(
+        path: object,
+        *,
+        quit_after_ms: int | None,
+        gateway_port_override: int | None,
+    ) -> int:
+        captured.extend((path, quit_after_ms, gateway_port_override))
         return 0
 
     monkeypatch.setattr(
@@ -34,11 +41,14 @@ def test_main_forwards_an_isolated_data_directory(
     )
 
     assert main(["--data-dir", str(tmp_path)]) == 0
-    assert captured == [tmp_path, None]
+    assert captured == [tmp_path, None, None]
 
 
 def test_main_accepts_no_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("astraweft.bootstrap.cli.run_desktop", lambda _path, *, quit_after_ms: 0)
+    monkeypatch.setattr(
+        "astraweft.bootstrap.cli.run_desktop",
+        lambda _path, *, quit_after_ms, gateway_port_override: 0,
+    )
 
     assert main([]) == 0
 
@@ -48,8 +58,13 @@ def test_internal_smoke_timeout_is_validated_and_forwarded(
 ) -> None:
     captured: list[int | None] = []
 
-    def capture_timeout(_path: object, *, quit_after_ms: int | None) -> int:
-        captured.append(quit_after_ms)
+    def capture_timeout(
+        _path: object,
+        *,
+        quit_after_ms: int | None,
+        gateway_port_override: int | None,
+    ) -> int:
+        captured.extend((quit_after_ms, gateway_port_override))
         return 0
 
     monkeypatch.setattr(
@@ -58,9 +73,31 @@ def test_internal_smoke_timeout_is_validated_and_forwarded(
     )
 
     assert main(["--quit-after-ms", "25"]) == 0
-    assert captured == [25]
+    assert captured == [25, None]
     with pytest.raises(SystemExit):
         build_parser().parse_args(["--quit-after-ms", "-1"])
+
+
+def test_internal_gateway_port_is_validated_and_forwarded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: list[int | None] = []
+
+    def capture_port(
+        _path: object,
+        *,
+        quit_after_ms: int | None,
+        gateway_port_override: int | None,
+    ) -> int:
+        captured.extend((quit_after_ms, gateway_port_override))
+        return 0
+
+    monkeypatch.setattr("astraweft.bootstrap.cli.run_desktop", capture_port)
+
+    assert main(["--gateway-port", "0"]) == 0
+    assert captured == [None, 0]
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["--gateway-port", "65536"])
 
 
 def test_parser_reports_product_version(capsys: pytest.CaptureFixture[str]) -> None:

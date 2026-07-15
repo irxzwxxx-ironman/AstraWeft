@@ -328,26 +328,36 @@ class MainWindow(QMainWindow):
 
         self._stack = QStackedWidget()
         if self._provider_service is not None:
-            provider_page: QWidget = ProviderPage(self._provider_service)
-            models_page: QWidget = ModelsPage(self._provider_service)
+            provider_page: QWidget = ProviderPage(self._provider_service, self._translator)
+            models_page: QWidget = ModelsPage(self._provider_service, self._translator)
             if isinstance(provider_page, ProviderPage) and isinstance(models_page, ModelsPage):
                 provider_page.catalog_changed.connect(models_page.request_refresh)
         else:
             provider_page = FoundationPage(
                 "⬡",
-                "连接第一个 Provider",
-                "Provider 插件将独立发现、测试连接并同步模型；API Key 只进入系统密钥环。",
-                "Provider 服务尚未注入",
+                self._translator.text("连接第一个 Provider", "Connect Your First Provider"),
+                self._translator.text(
+                    "Provider 插件将独立发现、测试连接并同步模型；API Key 只进入系统密钥环。",
+                    "Provider plugins are discovered independently, test connections, and sync models; API keys go only to the system credential store.",
+                ),
+                self._translator.text("Provider 服务尚未注入", "Provider service is not available"),
             )
             models_page = FoundationPage(
                 "◉",
-                "模型目录",
-                "模型能力、参数 JSON Schema、输出类型和版本化价格将从 Provider 动态同步。",
-                "等待模型同步",
+                self._translator.text("模型目录", "Model Catalog"),
+                self._translator.text(
+                    "模型能力、参数 JSON Schema、输出类型和版本化价格将从 Provider 动态同步。",
+                    "Model capabilities, parameter JSON schemas, output types, and versioned pricing are synced dynamically from providers.",
+                ),
+                self._translator.text("等待模型同步", "Waiting for model sync"),
             )
         if self._provider_service is not None and self._task_service is not None:
-            playground_page: QWidget = PlaygroundPage(self._provider_service, self._task_service)
-            task_page: QWidget = TaskCenterPage(self._task_service, self._query_service)
+            playground_page: QWidget = PlaygroundPage(
+                self._provider_service, self._task_service, self._translator
+            )
+            task_page: QWidget = TaskCenterPage(
+                self._task_service, self._query_service, self._translator
+            )
             artifact_page: QWidget = ArtifactsPage(
                 self._task_service,
                 Path(self._status.data_directory) / "artifacts",
@@ -355,8 +365,11 @@ class MainWindow(QMainWindow):
                 ThumbnailCache(
                     Path(self._status.cache_directory or self._status.data_directory) / "thumbnails"
                 ),
+                self._translator,
             )
-            logs_page: QWidget = RequestLogsPage(self._task_service, self._query_service)
+            logs_page: QWidget = RequestLogsPage(
+                self._task_service, self._query_service, self._translator
+            )
             if isinstance(provider_page, ProviderPage) and isinstance(
                 playground_page, PlaygroundPage
             ):
@@ -373,27 +386,41 @@ class MainWindow(QMainWindow):
         else:
             playground_page = FoundationPage(
                 "✦",
-                "Playground 即将就绪",
-                "Provider 与模型目录建立后，这里会按 Schema 自动生成参数表单，并展示请求、响应、成本与产物。",
-                "等待 Provider 模块",
+                self._translator.text("Playground 即将就绪", "Playground Is Almost Ready"),
+                self._translator.text(
+                    "Provider 与模型目录建立后，这里会按 Schema 自动生成参数表单，并展示请求、响应、成本与产物。",
+                    "Once providers and the model catalog are available, schema-driven parameter forms will show requests, responses, cost, and artifacts here.",
+                ),
+                self._translator.text("等待 Provider 模块", "Waiting for Provider module"),
             )
             task_page = FoundationPage(
                 "◷",
-                "任务中心",
-                "同步和异步 Provider 调用会统一进入可重试、可取消、可恢复的任务状态机。",
-                "等待 Task Runtime",
+                self._translator.text("任务中心", "Task Center"),
+                self._translator.text(
+                    "同步和异步 Provider 调用会统一进入可重试、可取消、可恢复的任务状态机。",
+                    "Synchronous and asynchronous Provider calls share one retryable, cancelable, recoverable task state machine.",
+                ),
+                self._translator.text("等待 Task Runtime", "Waiting for Task Runtime"),
             )
             artifact_page = FoundationPage(
                 "▦",
-                "本地产物库",
-                "图片、视频、音频与 JSON 产物将按哈希校验、来源血缘和回收站策略管理。",
-                "等待首个生成任务",
+                self._translator.text("本地产物库", "Local Artifact Library"),
+                self._translator.text(
+                    "图片、视频、音频与 JSON 产物将按哈希校验、来源血缘和回收站策略管理。",
+                    "Image, video, audio, and JSON artifacts are managed with hash verification, provenance, and trash policies.",
+                ),
+                self._translator.text("等待首个生成任务", "Waiting for the first generation task"),
             )
             logs_page = FoundationPage(
                 "≡",
-                "调用日志",
-                "每次外部请求会关联 Task、Attempt 和 trace ID；正文默认脱敏，未知成本不会显示为零。",
-                "等待第一次外部调用",
+                self._translator.text("调用日志", "Request Logs"),
+                self._translator.text(
+                    "每次外部请求会关联 Task、Attempt 和 trace ID；正文默认脱敏，未知成本不会显示为零。",
+                    "Every external request is linked to a task, attempt, and trace ID; bodies are redacted by default and unknown cost is never shown as zero.",
+                ),
+                self._translator.text(
+                    "等待第一次外部调用", "Waiting for the first external request"
+                ),
             )
         dashboard_page = DashboardPage(
             self._status,
@@ -407,22 +434,28 @@ class MainWindow(QMainWindow):
         else:
             costs_page = FoundationPage(
                 "¢",
-                "成本分析",
-                "Provider 已知价格会按模型与币种汇总，未知成本不会被计为零。",
-                "等待只读查询服务",
+                self._translator.text("成本分析", "Cost Analysis"),
+                self._translator.text(
+                    "Provider 已知价格会按模型与币种汇总，未知成本不会被计为零。",
+                    "Known Provider pricing is grouped by model and currency; unknown cost is never counted as zero.",
+                ),
+                self._translator.text("等待只读查询服务", "Waiting for read-only query service"),
             )
         if isinstance(playground_page, PlaygroundPage):
             playground_page.task_changed.connect(dashboard_page.request_refresh)
         if self._comfyui_service is not None:
-            comfyui_page: QWidget = ComfyUIPage(self._comfyui_service)
+            comfyui_page: QWidget = ComfyUIPage(self._comfyui_service, self._translator)
             if isinstance(comfyui_page, ComfyUIPage):
                 comfyui_page.health_changed.connect(self._comfyui_status.set_text)
         else:
             comfyui_page = FoundationPage(
                 "◈",
-                "连接 ComfyUI",
-                "配置本机执行实例、导入 API Format 模板并把图像或视频节点加入工作流。",
-                "等待 ComfyUI Adapter",
+                self._translator.text("连接 ComfyUI", "Connect ComfyUI"),
+                self._translator.text(
+                    "配置本机执行实例、导入 API Format 模板并把图像或视频节点加入工作流。",
+                    "Configure a local execution instance, import API Format templates, and add image or video nodes to workflows.",
+                ),
+                self._translator.text("等待 ComfyUI Adapter", "Waiting for ComfyUI Adapter"),
             )
         if (
             self._workflow_service is not None
@@ -434,15 +467,19 @@ class MainWindow(QMainWindow):
                 self._workflow_execution,
                 self._provider_service,
                 self._comfyui_service,
+                self._translator,
             )
             if isinstance(workflow_page, WorkflowPage):
                 workflow_page.workflow_changed.connect(dashboard_page.request_refresh)
         else:
             workflow_page = FoundationPage(
                 "⌘",
-                "工作流编排",
-                "不可变版本、类型安全端口和可恢复节点运行会在核心任务运行时完成后启用。",
-                "等待 Workflow Engine",
+                self._translator.text("工作流编排", "Workflow Orchestration"),
+                self._translator.text(
+                    "不可变版本、类型安全端口和可恢复节点运行会在核心任务运行时完成后启用。",
+                    "Immutable versions, type-safe ports, and recoverable node runs become available with the core task runtime.",
+                ),
+                self._translator.text("等待 Workflow Engine", "Waiting for Workflow Engine"),
             )
         settings_page: QWidget
         if self._maintenance_service is not None:
@@ -457,9 +494,12 @@ class MainWindow(QMainWindow):
         else:
             settings_page = FoundationPage(
                 "⚙",
-                "本地设置",
-                "备份、恢复、数据目录与脱敏诊断将在这里管理。",
-                "维护服务尚未注入",
+                self._translator.text("本地设置", "Local Settings"),
+                self._translator.text(
+                    "备份、恢复、数据目录与脱敏诊断将在这里管理。",
+                    "Backups, restores, data directories, and redacted diagnostics are managed here.",
+                ),
+                self._translator.text("维护服务尚未注入", "Maintenance service is not available"),
             )
         pages: list[tuple[str, QWidget]] = [
             ("dashboard", dashboard_page),
@@ -483,12 +523,19 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._build_statusbar())
         workspace_layout.addWidget(content, 1)
 
-        self._queue_drawer = Drawer("任务速览", workspace)
+        self._queue_drawer = Drawer(
+            self._translator.text("任务速览", "Task Overview"),
+            workspace,
+            self._translator,
+        )
         self._queue_drawer.set_content(
             EmptyState(
                 "◷",
-                "队列当前为空",
-                "Provider 任务开始后，这里会保留进度、状态与快速操作。",
+                self._translator.text("队列当前为空", "The queue is empty"),
+                self._translator.text(
+                    "Provider 任务开始后，这里会保留进度、状态与快速操作。",
+                    "Once Provider tasks start, progress, status, and quick actions remain available here.",
+                ),
             )
         )
         return workspace

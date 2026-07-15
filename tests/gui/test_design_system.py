@@ -129,3 +129,6 @@ def test_theme_records_system_motion_preference(
 
     assert application.property("astraweftTheme") == "system"
     assert application.property("astraweftReduceMotion") is True
+    assert "QScrollBar:horizontal" in application.styleSheet()
+    assert "QCheckBox::indicator" in application.styleSheet()
+    assert "QFrame#SurfaceCard" in application.styleSheet()

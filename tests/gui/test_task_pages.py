@@ -51,6 +51,8 @@ async def test_playground_task_log_and_artifact_pages_share_real_local_data(
         qtbot.addWidget(page)
         page.show()
     try:
+        await task_page._refresh()
+        assert not task_page._cancel.isEnabled()
         provider = await context.provider_service.create(
             CreateProvider(
                 plugin_id="dev.astraweft.mock-provider",
@@ -91,6 +93,10 @@ async def test_playground_task_log_and_artifact_pages_share_real_local_data(
         assert dashboard._success._value_widget.text() == "100.0%"
         assert dashboard._cost._value_widget.text().startswith("USD ")
         assert "1 个已配置" in dashboard._provider_summary.text()
+        assert dashboard._hero_destination == "playground"
+        assert "Playground" in dashboard._hero_action.text()
+        assert "1 个已配置" in dashboard._provider_health._value_widget.text()
+        assert not task_page._cancel.isEnabled()
         assert costs_page._table.model() is not None
         assert costs_page._table.model().rowCount() == 1
         assert costs_page._known._value_widget.text().startswith("USD ")

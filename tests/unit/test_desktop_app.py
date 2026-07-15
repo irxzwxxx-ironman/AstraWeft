@@ -96,15 +96,30 @@ class FakeInstance:
 
 
 class FakeRuntime:
-    def __init__(self) -> None:
+    def __init__(self, events: list[str], name: str) -> None:
+        self._events = events
+        self._name = name
         self.started = False
 
     def start(self) -> None:
         self.started = True
+        self._events.append(f"{self._name}_started")
+
+
+class FakeGateway:
+    def __init__(self, events: list[str]) -> None:
+        self._events = events
+        self.started = False
+        self.bound_port = 17493
+
+    async def start(self) -> None:
+        self.started = True
+        self._events.append("gateway_started")
 
 
 class FakeContext:
     def __init__(self) -> None:
+        self.events: list[str] = []
         self.settings = SimpleNamespace(
             theme="dark",
             reduce_motion=True,
@@ -114,11 +129,15 @@ class FakeContext:
         self.task_service = object()
         self.workflow_service = object()
         self.workflow_execution = object()
-        self.task_runtime = FakeRuntime()
-        self.workflow_runtime = FakeRuntime()
+        self.task_runtime = FakeRuntime(self.events, "task_runtime")
+        self.workflow_runtime = FakeRuntime(self.events, "workflow_runtime")
+        self.loopback_gateway = FakeGateway(self.events)
+        self.secret_store = SimpleNamespace(persistent=False)
+        self.traces = SimpleNamespace(start=lambda: _NullContext())
         self.closed = False
 
     def presentation_status(self) -> object:
+        self.events.append("status_read")
         return object()
 
     async def close(self) -> None:
@@ -139,6 +158,14 @@ class FakeWindow:
         self.shown = True
 
 
+class _NullContext:
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+
 def _install_fakes(monkeypatch: pytest.MonkeyPatch) -> tuple[FakeApplication, FakeContext]:
     application = FakeApplication()
     context = FakeContext()
@@ -149,7 +176,12 @@ def _install_fakes(monkeypatch: pytest.MonkeyPatch) -> tuple[FakeApplication, Fa
         ensure=lambda: None,
     )
 
-    async def build(_root: Path | None) -> FakeContext:
+    async def build(
+        _root: Path | None,
+        *,
+        gateway_port_override: int | None,
+    ) -> FakeContext:
+        assert gateway_port_override is None
         return context
 
     monkeypatch.setattr(desktop, "QApplication", FakeApplication)
@@ -180,6 +212,13 @@ def test_run_desktop_primary_owns_and_closes_all_resources(
     assert application.quit_called
     assert context.task_runtime.started
     assert context.workflow_runtime.started
+    assert context.loopback_gateway.started
+    assert context.events == [
+        "task_runtime_started",
+        "workflow_runtime_started",
+        "gateway_started",
+        "status_read",
+    ]
     assert context.closed
     assert FakeWindow.last is not None and FakeWindow.last.shown
     assert FakeInstance.last is not None and FakeInstance.last.closed
@@ -216,7 +255,11 @@ def test_run_desktop_reports_instance_and_core_startup_failures(
     _install_fakes(monkeypatch)
     FakeInstance.outcome = InstanceOutcome.PRIMARY
 
-    async def fail_build(_root: Path | None) -> FakeContext:
+    async def fail_build(
+        _root: Path | None,
+        *,
+        gateway_port_override: int | None,
+    ) -> FakeContext:
         raise RuntimeError("core failure")
 
     monkeypatch.setattr(desktop, "build_app_context", fail_build)

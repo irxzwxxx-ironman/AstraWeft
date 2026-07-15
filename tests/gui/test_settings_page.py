@@ -8,7 +8,7 @@ from typing import cast
 
 import pytest
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QPushButton, QScrollArea
 from pytestqt.qtbot import QtBot
 
 from astraweft.application.maintenance import MaintenanceService
@@ -42,7 +42,15 @@ async def test_settings_page_runs_real_backup_diagnostics_and_restore_preview(
         context.settings,
     )
     qtbot.addWidget(page)
+    page.resize(1180, 720)
     page.show()
+    QApplication.processEvents()
+    assert isinstance(page, QScrollArea)
+    assert page.verticalScrollBar().maximum() > 0
+    backup_button = next(
+        button for button in page.findChildren(QPushButton) if button.text() == "立即备份"
+    )
+    assert not backup_button.geometry().intersects(page._backup_status.geometry())
     information: list[str] = []
     monkeypatch.setattr(
         QMessageBox,

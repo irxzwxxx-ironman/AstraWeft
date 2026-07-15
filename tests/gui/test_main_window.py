@@ -68,7 +68,21 @@ def test_sidebar_and_dashboard_action_navigate(qtbot: QtBot, status: Application
     window._show_page("dashboard")
     dashboard = window._stack.currentWidget()
     assert isinstance(dashboard, DashboardPage)
-    dashboard.open_page_requested.emit("providers")
+    dashboard._apply_summary(
+        calls=0,
+        terminal=0,
+        successes=0,
+        running=0,
+        known=(),
+        unknown=0,
+        provider_count=0,
+        enabled=0,
+        healthy=0,
+        artifact_count=0,
+        artifact_size=0,
+    )
+    assert dashboard._hero_destination == "providers"
+    dashboard._hero_action.click()
     assert title.text() == "Provider"
     assert window._buttons["providers"].isChecked()
 
