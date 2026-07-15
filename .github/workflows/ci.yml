@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.11.28"
+
+jobs:
+  quality:
+    name: Quality and architecture
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --locked --dev
+
+      - name: Lint
+        run: uv run --locked ruff check .
+
+      - name: Check formatting
+        run: uv run --locked ruff format --check .
+
+      - name: Type check
+        run: uv run --locked mypy
+
+      - name: Check architecture contracts
+        run: uv run --locked lint-imports
+
+      - name: Test with coverage
+        run: >-
+          uv run --locked pytest
+          --cov=astraweft
+          --cov-report=term-missing
+          --cov-report=xml
+
+      - name: Audit Python dependencies
+        run: uv run --locked pip-audit --timeout 60 --progress-spinner off
+
+  package:
+    name: Build and inspect package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --locked --dev
+
+      - name: Build source and wheel distributions
+        run: uv build
+
+      - name: Validate package metadata
+        run: uv run --locked twine check dist/*
+
+      - name: Inspect wheel contents
+        run: uv run --locked check-wheel-contents dist/*.whl
+
+      - name: Smoke test wheel
+        run: >-
+          uv run --isolated --no-project
+          --with ${{ github.workspace }}/dist/*.whl
+          --with pytest
+          pytest tests/smoke_test.py
+
+  cross-platform-smoke:
+    name: Smoke / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --locked --dev
+
+      - name: Run process and package smoke tests
+        run: uv run --locked pytest tests/unit tests/integration tests/smoke_test.py
+
+      - name: Verify console entry point
+        run: uv run --locked astraweft --version
+
+  python-compatibility:
+    name: Python / ${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --locked --dev
+
+      - name: Run compatibility tests
+        run: uv run --locked pytest tests/unit tests/integration tests/smoke_test.py

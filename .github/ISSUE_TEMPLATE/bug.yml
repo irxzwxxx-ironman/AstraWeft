@@ -1,0 +1,59 @@
+name: Bug report
+description: Report reproducible incorrect behavior without sharing secrets or private data.
+title: "[Bug]: "
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include API keys, signed URLs, private prompts, user artifacts, or production logs.
+        Report security issues privately according to SECURITY.md.
+
+  - type: checkboxes
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
+        - label: I removed credentials and private data from the report.
+          required: true
+
+  - type: input
+    attributes:
+      label: AstraWeft version or commit
+      placeholder: v0.x.y or commit SHA
+    validations:
+      required: true
+
+  - type: dropdown
+    attributes:
+      label: Operating system
+      options: [macOS, Windows, Linux, Other]
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Minimal reproduction
+      description: Use a Mock Provider or synthetic data whenever possible.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Sanitized diagnostics
+      description: Include trace IDs and redacted details only.

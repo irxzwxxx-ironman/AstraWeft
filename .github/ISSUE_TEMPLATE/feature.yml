@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a product capability or engineering improvement.
+title: "[Feature]: "
+labels: [enhancement, needs-triage]
+body:
+  - type: checkboxes
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and roadmap documents.
+          required: true
+
+  - type: textarea
+    attributes:
+      label: Problem
+      description: Describe the user or engineering problem before the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Proposed outcome
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Alternatives and trade-offs
+
+  - type: checkboxes
+    attributes:
+      label: Architectural impact
+      options:
+        - label: Provider Plugin API
+        - label: Workflow format or execution
+        - label: Database or migrations
+        - label: Security or credential handling
+        - label: Cross-platform packaging
+        - label: GUI design system or accessibility

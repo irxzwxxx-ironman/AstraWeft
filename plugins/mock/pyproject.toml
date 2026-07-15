@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "astraweft-mock-provider"
+version = "0.1.0.dev0"
+description = "Deterministic contract and development Provider for AstraWeft."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "AstraWeft Contributors" }]
+dependencies = ["astraweft-provider-sdk>=0.1.0.dev0"]
+
+[project.entry-points."astraweft.providers"]
+mock = "astraweft_mock_provider.plugin:MockProviderPlugin"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astraweft_mock_provider"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE", "/NOTICE"]

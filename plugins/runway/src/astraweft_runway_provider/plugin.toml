@@ -1,0 +1,26 @@
+manifest_version = 1
+plugin_id = "com.runwayml.api-provider"
+name = "Runway"
+version = "0.1.0.dev0"
+plugin_api = ">=1.0,<2.0"
+python = ">=3.12,<3.14"
+entry_point = "astraweft_runway_provider.plugin:RunwayProviderPlugin"
+description = "Runway asynchronous text-to-video Provider"
+homepage = "https://docs.dev.runwayml.com/api/"
+license = "Apache-2.0"
+
+[publisher]
+name = "AstraWeft Contributors"
+url = "https://github.com/astraweft"
+
+[permissions]
+network = ["api.dev.runwayml.com", "*.cloudfront.net"]
+filesystem = "none"
+subprocess = false
+
+[capabilities]
+operations = ["video.generate"]
+async_tasks = true
+cancel = true
+model_discovery = true
+usage = false

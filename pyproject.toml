@@ -1,0 +1,259 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "astraweft"
+version = "0.1.0.dev0"
+description = "Local-first desktop AI provider, task, and workflow manager."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "AstraWeft Contributors" }]
+keywords = ["ai", "desktop", "workflow", "comfyui", "local-first"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Environment :: MacOS X",
+  "Environment :: Win32 (MS Windows)",
+  "Intended Audience :: Developers",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Graphics",
+  "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dependencies = [
+  "aiohttp>=3.12,<4",
+  "anyio>=4,<5",
+  "aiosqlite>=0.21,<1",
+  "alembic>=1.16,<2",
+  "astraweft-provider-sdk>=0.1.0.dev0",
+  "httpx>=0.28,<1",
+  "jsonschema>=4.25,<5",
+  "keyring>=25.6,<26",
+  "platformdirs>=4.4,<5",
+  "pydantic>=2.11,<3",
+  "PySide6>=6.9,<6.11",
+  "qasync>=0.28,<0.29",
+  "SQLAlchemy[asyncio]>=2.0.51,<2.1",
+]
+
+[project.scripts]
+astraweft = "astraweft.__main__:main"
+
+[dependency-groups]
+dev = [
+  "astraweft-mock-provider>=0.1.0.dev0",
+  "astraweft-openai-provider>=0.1.0.dev0",
+  "astraweft-runway-provider>=0.1.0.dev0",
+  "build>=1.2,<2",
+  "check-wheel-contents>=0.6,<1",
+  "import-linter>=2.3,<3",
+  "mypy>=1.15,<2",
+  "pip-audit>=2.9,<3",
+  "pre-commit>=4.2,<5",
+  "pytest>=8.3,<10",
+  "pytest-asyncio>=1,<2",
+  "pytest-cov>=6,<8",
+  "pytest-qt>=4.5,<5",
+  "ruff>=0.11,<1",
+  "twine>=6.1,<7",
+  "types-jsonschema>=4.25,<5",
+]
+release = [
+  "cyclonedx-bom>=7.3,<8",
+  "pyinstaller>=6.21,<7",
+]
+
+[tool.uv.sources]
+astraweft-provider-sdk = { workspace = true }
+astraweft-mock-provider = { workspace = true }
+astraweft-openai-provider = { workspace = true }
+astraweft-runway-provider = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/provider-sdk", "plugins/mock", "plugins/openai", "plugins/runway"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astraweft"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"integrations/comfyui_custom_nodes/AstraWeftGateway" = "astraweft/integrations/comfyui_custom_nodes/AstraWeftGateway"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/integrations",
+  "/tests/smoke_test.py",
+  "/CHANGELOG.md",
+  "/CODE_OF_CONDUCT.md",
+  "/CONTRIBUTING.md",
+  "/LICENSE",
+  "/NOTICE",
+  "/README.md",
+  "/SECURITY.md",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests", "packages/provider-sdk/src", "plugins/mock/src", "plugins/openai/src", "plugins/runway/src"]
+extend-exclude = [".idea", "build", "dist"]
+
+[tool.ruff.lint]
+allowed-confusables = ["，", "：", "；", "？", "×"]
+select = [
+  "ASYNC",
+  "B",
+  "C4",
+  "E4",
+  "E7",
+  "E9",
+  "F",
+  "I",
+  "PERF",
+  "PIE",
+  "RUF",
+  "S",
+  "SIM",
+  "T20",
+  "UP",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["ASYNC240", "S101", "S603"]
+"packages/**/tests/**/*.py" = ["ASYNC240", "S101", "S603"]
+"plugins/**/tests/**/*.py" = ["ASYNC240", "S101", "S603"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src", "tests", "packages/provider-sdk/src", "packages/provider-sdk/tests", "plugins/mock/src", "plugins/mock/tests", "plugins/openai/src", "plugins/openai/tests", "plugins/runway/src", "plugins/runway/tests"]
+pretty = true
+show_error_codes = true
+warn_unreachable = true
+exclude = ["(^|/)conftest\\.py$"]
+
+[[tool.mypy.overrides]]
+module = "qasync"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.3"
+addopts = [
+  "--strict-config",
+  "--strict-markers",
+  "-ra",
+]
+testpaths = ["tests", "packages/provider-sdk/tests", "plugins/mock/tests", "plugins/openai/tests", "plugins/runway/tests"]
+markers = [
+  "contract: provider and external-boundary contract tests",
+  "gui: tests requiring a Qt application",
+  "integration: tests crossing infrastructure boundaries",
+  "performance: opt-in large-scale local performance gates",
+]
+asyncio_mode = "auto"
+qt_api = "pyside6"
+
+[tool.coverage.run]
+branch = true
+source = ["astraweft", "astraweft_provider_sdk", "astraweft_mock_provider", "astraweft_openai_provider", "astraweft_runway_provider"]
+
+[tool.coverage.report]
+fail_under = 90
+precision = 2
+show_missing = true
+skip_covered = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+  "raise NotImplementedError",
+]
+
+[tool.importlinter]
+root_packages = ["astraweft", "astraweft_provider_sdk", "astraweft_mock_provider", "astraweft_openai_provider", "astraweft_runway_provider"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Domain is independent from outer layers"
+type = "forbidden"
+source_modules = ["astraweft.domain"]
+forbidden_modules = [
+  "astraweft.application",
+  "astraweft.bootstrap",
+  "astraweft.infrastructure",
+  "astraweft.presentation",
+]
+
+[[tool.importlinter.contracts]]
+name = "Provider SDK is independent from Core and plugins"
+type = "forbidden"
+source_modules = ["astraweft_provider_sdk"]
+forbidden_modules = [
+  "astraweft",
+  "astraweft_mock_provider",
+  "PySide6",
+  "sqlalchemy",
+]
+
+[[tool.importlinter.contracts]]
+name = "Mock Provider depends only on the public SDK"
+type = "forbidden"
+source_modules = ["astraweft_mock_provider"]
+forbidden_modules = [
+  "astraweft",
+  "PySide6",
+  "sqlalchemy",
+  "keyring",
+]
+
+[[tool.importlinter.contracts]]
+name = "OpenAI Provider depends only on the public SDK"
+type = "forbidden"
+source_modules = ["astraweft_openai_provider"]
+forbidden_modules = [
+  "astraweft",
+  "PySide6",
+  "sqlalchemy",
+  "keyring",
+  "httpx",
+  "openai",
+]
+
+[[tool.importlinter.contracts]]
+name = "Runway Provider depends only on the public SDK"
+type = "forbidden"
+source_modules = ["astraweft_runway_provider"]
+forbidden_modules = [
+  "astraweft",
+  "PySide6",
+  "sqlalchemy",
+  "keyring",
+  "httpx",
+  "runwayml",
+]
+
+[[tool.importlinter.contracts]]
+name = "Ports are independent from adapters"
+type = "forbidden"
+source_modules = ["astraweft.ports"]
+forbidden_modules = [
+  "astraweft.bootstrap",
+  "astraweft.infrastructure",
+  "astraweft.presentation",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application is independent from delivery and infrastructure"
+type = "forbidden"
+source_modules = ["astraweft.application"]
+forbidden_modules = [
+  "astraweft.bootstrap",
+  "astraweft.infrastructure",
+  "astraweft.presentation",
+]

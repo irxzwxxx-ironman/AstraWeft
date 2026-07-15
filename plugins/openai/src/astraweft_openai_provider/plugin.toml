@@ -1,0 +1,26 @@
+manifest_version = 1
+plugin_id = "com.openai.api-provider"
+name = "OpenAI"
+version = "0.1.0.dev0"
+plugin_api = ">=1.0,<2.0"
+python = ">=3.12,<3.14"
+entry_point = "astraweft_openai_provider.plugin:OpenAIProviderPlugin"
+description = "OpenAI Responses API text generation Provider"
+homepage = "https://developers.openai.com/api/docs"
+license = "Apache-2.0"
+
+[publisher]
+name = "AstraWeft Contributors"
+url = "https://github.com/astraweft"
+
+[permissions]
+network = ["api.openai.com"]
+filesystem = "none"
+subprocess = false
+
+[capabilities]
+operations = ["text.generate"]
+async_tasks = false
+cancel = false
+model_discovery = true
+usage = true

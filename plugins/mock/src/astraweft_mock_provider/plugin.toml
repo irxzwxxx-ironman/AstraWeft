@@ -1,0 +1,26 @@
+manifest_version = 1
+plugin_id = "dev.astraweft.mock-provider"
+name = "AstraWeft Mock Provider"
+version = "0.1.0.dev0"
+plugin_api = ">=1.0,<2.0"
+python = ">=3.12,<3.14"
+entry_point = "astraweft_mock_provider.plugin:MockProviderPlugin"
+description = "Deterministic zero-network Provider for development and contract tests"
+homepage = "https://github.com/astraweft/astraweft"
+license = "Apache-2.0"
+
+[publisher]
+name = "AstraWeft Contributors"
+url = "https://github.com/astraweft"
+
+[permissions]
+network = []
+filesystem = "plugin_data"
+subprocess = false
+
+[capabilities]
+operations = ["text.generate", "image.generate", "video.generate"]
+async_tasks = true
+cancel = true
+model_discovery = true
+usage = true

@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# Virtual environments and dependency tools
+.venv/
+.uv-cache/
+
+# Test, type-check, and coverage output
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build and packaging output
+build/
+dist/
+*.spec
+
+# IDE and editor state
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Local runtime data and secrets
+.env
+.env.*
+!.env.example
+/data/
+/artifacts/
+/logs/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Local signing and release credentials
+*.p12
+*.pfx
+*.key
+*.pem
+*.mobileprovision
