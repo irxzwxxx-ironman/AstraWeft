@@ -108,7 +108,7 @@ async def test_provider_and_model_pages_run_the_full_local_lifecycle(
         plugin_dialog = PluginManagerDialog(context.provider_service)
         qtbot.addWidget(plugin_dialog)
         await plugin_dialog.refresh()
-        assert "3 个已发现" in plugin_dialog._summary.text()
+        assert "4 个已发现" in plugin_dialog._summary.text()
         management = await context.provider_service.plugin_management()
         mock_entry = next(
             entry

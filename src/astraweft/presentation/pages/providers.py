@@ -176,6 +176,18 @@ class ProviderDialog(QDialog):
             _ = self.credentials()
             if not self._name.text().strip():
                 raise SchemaFormError(self._translator.text("名称不能为空", "Name is required"))
+            descriptor = self._selected_record().descriptor
+            if (
+                descriptor is not None
+                and descriptor.endpoint_required
+                and not self._endpoint.text().strip()
+            ):
+                raise SchemaFormError(
+                    self._translator.text(
+                        "请填写第三方 API 的 HTTPS 服务地址",
+                        "Enter the third-party API HTTPS endpoint",
+                    )
+                )
         except SchemaFormError as exc:
             self._error.setText(str(exc))
             self._error.show()
@@ -288,7 +300,22 @@ class ProviderDialog(QDialog):
                 )
             )
         else:
-            self._endpoint.setToolTip("")
+            self._endpoint.setPlaceholderText(
+                self._translator.text(
+                    "例如：https://api.example.com/v1",
+                    "For example: https://api.example.com/v1",
+                )
+                if descriptor.endpoint_required
+                else self._translator.text("使用插件默认地址", "Use the plugin default endpoint")
+            )
+            self._endpoint.setToolTip(
+                self._translator.text(
+                    "仅该精确 HTTPS 域名会获得网络权限。",
+                    "Only this exact HTTPS host receives network permission.",
+                )
+                if descriptor.endpoint_required
+                else ""
+            )
         settings_section = _section(self._translator.text("连接设置", "Connection settings"))
         self._settings_form = SchemaForm(
             descriptor.settings_schema,

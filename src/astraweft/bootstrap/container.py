@@ -195,6 +195,7 @@ async def build_app_context(
             secrets_store=secret_store,
             artifact_root=paths.artifact_dir,
             port=17493 if gateway_port_override is None else gateway_port_override,
+            token_handoff_path=Path.home() / ".astraweft" / "comfyui-gateway-token",
         )
         workflow_uow_factory = SQLiteWorkflowUnitOfWorkFactory(database.sessions, events)
         workflow_service = WorkflowService(

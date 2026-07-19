@@ -62,6 +62,7 @@ class ProviderDescriptor:
     settings_schema: Mapping[str, object]
     settings_ui_schema: Mapping[str, object]
     credential_schema: Mapping[str, object]
+    endpoint_required: bool = False
     redaction_paths: tuple[str, ...] = ()
     idempotency: Literal["native", "emulated", "none"] = "none"
     progress: Literal["exact", "estimated", "none"] = "none"
@@ -307,3 +308,4 @@ class ProviderContext:
     plugin_data: PluginDataDirectory
     core_version: str
     plugin_api_version: str
+    endpoint: str | None = None

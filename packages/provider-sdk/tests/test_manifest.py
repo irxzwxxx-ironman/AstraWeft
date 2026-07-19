@@ -28,6 +28,8 @@ url = "https://example.com"
 network = ["api.example.com"]
 filesystem = "plugin_data"
 subprocess = false
+user_configured_endpoint = true
+additional_network_hosts_setting = "additional_allowed_hosts"
 
 [capabilities]
 operations = ["text.generate"]
@@ -46,6 +48,8 @@ def test_load_manifest_parses_and_checks_compatibility(tmp_path: Path) -> None:
 
     assert manifest.plugin_id == "com.example.provider"
     assert manifest.permissions.network == ("api.example.com",)
+    assert manifest.permissions.user_configured_endpoint is True
+    assert manifest.permissions.additional_network_hosts_setting == "additional_allowed_hosts"
     assert manifest.capabilities.operations == frozenset({"text.generate"})
     manifest.assert_compatible("1.9")
     with pytest.raises(ManifestError):
@@ -62,6 +66,10 @@ def test_load_manifest_parses_and_checks_compatibility(tmp_path: Path) -> None:
         ('operations = ["text.generate"]', "operations = []"),
         ('plugin_api = ">=1.0,<2.0"', 'plugin_api = ">=2.0"'),
         ('filesystem = "plugin_data"', 'filesystem = "all"'),
+        (
+            'additional_network_hosts_setting = "additional_allowed_hosts"',
+            'additional_network_hosts_setting = "bad.setting"',
+        ),
     ],
 )
 def test_invalid_manifests_are_rejected(tmp_path: Path, old: str, new: str) -> None:

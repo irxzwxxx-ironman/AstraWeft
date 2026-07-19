@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
@@ -168,6 +169,17 @@ class SchemaForm(QWidget):
             return select
 
         value_type = schema.get("type", "string")
+        ui_options = self._ui_schema.get(name, {})
+        widget_name = ui_options.get("ui:widget") if isinstance(ui_options, Mapping) else None
+        if value_type in {"object", "array"} and widget_name == "json":
+            area = QPlainTextEdit()
+            area.setObjectName("JsonEditor")
+            area.setAccessibleName(name)
+            area.setProperty("astraweftJsonType", value_type)
+            area.setFixedHeight(260)
+            default = schema.get("default", {} if value_type == "object" else [])
+            area.setPlainText(json.dumps(_plain_json(default), ensure_ascii=False, indent=2))
+            return area
         if value_type == "boolean":
             checkbox = QCheckBox(self._translator.text("启用", "Enabled"))
             checkbox.setObjectName("SchemaCheckBox")
@@ -203,8 +215,6 @@ class SchemaForm(QWidget):
                 )
             )
 
-        ui_options = self._ui_schema.get(name, {})
-        widget_name = ui_options.get("ui:widget") if isinstance(ui_options, Mapping) else None
         if widget_name == "textarea":
             area = QPlainTextEdit()
             area.setObjectName("TextArea")
@@ -272,7 +282,33 @@ def _field_value(field: QWidget, translator: Translator | None = None) -> object
     if isinstance(field, QDoubleSpinBox):
         return field.value()
     if isinstance(field, QPlainTextEdit):
-        return field.toPlainText()
+        raw = field.toPlainText()
+        expected = field.property("astraweftJsonType")
+        if expected not in {"object", "array"}:
+            return raw
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            translator = translator or Translator()
+            raise SchemaFormError(
+                translator.text(
+                    "JSON 配置无效：第 {line} 行第 {column} 列",
+                    "Invalid JSON configuration at line {line}, column {column}",
+                    line=exc.lineno,
+                    column=exc.colno,
+                )
+            ) from None
+        if (expected == "object" and not isinstance(value, Mapping)) or (
+            expected == "array" and not isinstance(value, list)
+        ):
+            translator = translator or Translator()
+            raise SchemaFormError(
+                translator.text(
+                    "JSON 配置的顶层类型不正确",
+                    "The JSON configuration has the wrong top-level type",
+                )
+            )
+        return value
     if isinstance(field, QLineEdit):
         return field.text()
     translator = translator or Translator()
@@ -291,8 +327,12 @@ def _set_field_value(field: QWidget, value: object) -> None:
         field.setValue(value)
     elif isinstance(field, QDoubleSpinBox) and isinstance(value, (int, float)):
         field.setValue(float(value))
-    elif isinstance(field, QPlainTextEdit) and isinstance(value, str):
-        field.setPlainText(value)
+    elif isinstance(field, QPlainTextEdit):
+        expected = field.property("astraweftJsonType")
+        if expected in {"object", "array"} and isinstance(value, (Mapping, list, tuple)):
+            field.setPlainText(json.dumps(_plain_json(value), ensure_ascii=False, indent=2))
+        elif isinstance(value, str):
+            field.setPlainText(value)
     elif isinstance(field, QLineEdit) and isinstance(value, str):
         field.setText(value)
 
@@ -313,3 +353,11 @@ def _number(value: object, fallback: float) -> float:
         if isinstance(value, (int, float)) and not isinstance(value, bool)
         else fallback
     )
+
+
+def _plain_json(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {str(key): _plain_json(child) for key, child in value.items()}
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [_plain_json(child) for child in value]
+    return value

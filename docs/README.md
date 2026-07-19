@@ -30,6 +30,7 @@
 26. [Provider 插件开发指南](./development/Provider_Development_Guide.md) — 独立包、manifest、Schema、运行边界、合约测试和 wheel 验证。
 27. [Beta 发布、迁移与回滚政策](./release/Beta_Release_and_Rollback_Policy.md) — SemVer、候选提升、自动备份、升级与二进制/数据库配套回滚。
 28. [Phase 8 本地发行工程报告](./phase-reports/Phase_8_Local_Release_Engineering.md) — macOS 候选包、冷启动、升级回滚、SBOM、许可证与外部门禁。
+29. [Custom REST Provider 设计](./provider-adapters/Custom_REST_Provider_Design.md) — 任意 HTTPS JSON API、多接口转发、密钥注入和响应映射。
 
 ## 历史资料
 

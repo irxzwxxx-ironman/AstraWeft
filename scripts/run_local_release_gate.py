@@ -18,6 +18,7 @@ DEFAULT_PHASE_ROOT = PROJECT_ROOT / "build" / "phase8"
 DEFAULT_DIST = PROJECT_ROOT / "dist" / "desktop"
 PROJECTS = (
     PROJECT_ROOT / "packages" / "provider-sdk",
+    PROJECT_ROOT / "plugins" / "custom-rest",
     PROJECT_ROOT / "plugins" / "mock",
     PROJECT_ROOT / "plugins" / "openai",
     PROJECT_ROOT / "plugins" / "runway",

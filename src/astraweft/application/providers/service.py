@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import ipaddress
 import json
 import logging
+import re
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Any, cast
+from urllib.parse import urlsplit, urlunsplit
 
 from jsonschema import Draft202012Validator
 
@@ -231,7 +234,7 @@ class ProviderService:
             model=model,
             descriptor=plugin.descriptor,
             client=self._create_client(provider, credential_ref),
-            allowed_network=self._allowed_network(provider.plugin_id),
+            allowed_network=self._allowed_network(provider),
         )
 
     async def create(self, command: CreateProvider) -> Provider:
@@ -239,6 +242,8 @@ class ProviderService:
         descriptor = plugin.descriptor
         settings = self._validated_settings(command.settings, descriptor)
         credentials = self._validated_credentials(command.credentials, descriptor)
+        endpoint = self._validated_endpoint(command.endpoint, descriptor)
+        self._network_permissions(descriptor.plugin_id, endpoint, settings)
         name = _required_name(command.name)
         await self._assert_name_available(name)
 
@@ -250,7 +255,7 @@ class ProviderService:
             plugin_id=descriptor.plugin_id,
             plugin_version=descriptor.version,
             name=name,
-            endpoint=_optional_text(command.endpoint),
+            endpoint=endpoint,
             enabled=command.enabled,
             config=settings,
             credential_id=credential.id if credential is not None else None,
@@ -283,6 +288,8 @@ class ProviderService:
         plugin = self._plugins.get(current.plugin_id)
         descriptor = plugin.descriptor
         settings = self._validated_settings(command.settings, descriptor)
+        endpoint = self._validated_endpoint(command.endpoint, descriptor)
+        self._network_permissions(descriptor.plugin_id, endpoint, settings)
         name = _required_name(command.name)
         await self._assert_name_available(name, excluding_provider_id=current.id)
 
@@ -299,7 +306,7 @@ class ProviderService:
             current,
             plugin_version=descriptor.version,
             name=name,
-            endpoint=_optional_text(command.endpoint),
+            endpoint=endpoint,
             enabled=command.enabled,
             config=settings,
             credential_id=(
@@ -502,11 +509,23 @@ class ProviderService:
 
     def _create_client(self, provider: Provider, credential_ref: str | None) -> ProviderClient:
         plugin = self._plugins.get(provider.plugin_id)
-        allowed_network = self._allowed_network(provider.plugin_id)
-        context = self._provider_contexts(provider.plugin_id, allowed_network)
+        allowed_network = self._allowed_network(provider)
+        context = self._provider_contexts(provider.plugin_id, allowed_network, provider.endpoint)
         return plugin.create_client(context, provider.config, credential_ref)
 
-    def _allowed_network(self, plugin_id: str) -> tuple[str, ...]:
+    def _allowed_network(self, provider: Provider) -> tuple[str, ...]:
+        return self._network_permissions(
+            provider.plugin_id,
+            provider.endpoint,
+            provider.config,
+        )
+
+    def _network_permissions(
+        self,
+        plugin_id: str,
+        endpoint: str | None,
+        settings: Mapping[str, object],
+    ) -> tuple[str, ...]:
         record = next(
             (
                 item
@@ -515,9 +534,40 @@ class ProviderService:
             ),
             None,
         )
-        return (
-            () if record is None or record.manifest is None else record.manifest.permissions.network
-        )
+        if record is None or record.manifest is None:
+            return ()
+        permissions = record.manifest.permissions
+        allowed = list(permissions.network)
+        if permissions.user_configured_endpoint:
+            if endpoint is None:
+                raise ProviderInputError("请填写第三方 API 的 HTTPS 服务地址")
+            allowed.append(_endpoint_host(endpoint))
+        setting_name = permissions.additional_network_hosts_setting
+        if setting_name is not None:
+            extra_hosts = settings.get(setting_name, ())
+            if not isinstance(extra_hosts, Sequence) or isinstance(
+                extra_hosts, (str, bytes, bytearray)
+            ):
+                raise ProviderInputError("附加下载主机必须是 JSON 数组")
+            allowed.extend(_validated_public_host(item) for item in extra_hosts)
+        return tuple(dict.fromkeys(allowed))
+
+    @staticmethod
+    def _validated_endpoint(
+        value: str | None,
+        descriptor: ProviderDescriptor,
+    ) -> str | None:
+        supplied = _optional_text(value)
+        if descriptor.default_endpoint is not None:
+            fixed = _validated_https_endpoint(descriptor.default_endpoint)
+            if supplied is not None and _validated_https_endpoint(supplied) != fixed:
+                raise ProviderInputError("该 Provider 不允许修改官方服务地址")
+            return fixed
+        if supplied is None:
+            if descriptor.endpoint_required:
+                raise ProviderInputError("请填写第三方 API 的 HTTPS 服务地址")
+            return None
+        return _validated_https_endpoint(supplied)
 
     async def _assert_name_available(
         self, name: str, *, excluding_provider_id: str | None = None
@@ -705,6 +755,60 @@ def _optional_text(value: str | None) -> str | None:
         return None
     normalized = value.strip()
     return normalized or None
+
+
+def _validated_https_endpoint(value: str) -> str:
+    if len(value) > 2048:
+        raise ProviderInputError("服务地址过长")
+    try:
+        parsed = urlsplit(value)
+        port = parsed.port
+    except ValueError:
+        raise ProviderInputError("服务地址格式无效") from None
+    if parsed.scheme.lower() != "https" or not parsed.hostname:
+        raise ProviderInputError("第三方 API 服务地址必须使用 HTTPS")
+    if parsed.username is not None or parsed.password is not None:
+        raise ProviderInputError("服务地址不能包含用户名或密码")
+    if port not in (None, 443) or parsed.query or parsed.fragment:
+        raise ProviderInputError("服务地址只允许标准 HTTPS 端口和基础路径")
+    host = _validated_public_host(parsed.hostname)
+    path = parsed.path.rstrip("/")
+    return urlunsplit(("https", host, path, "", ""))
+
+
+def _endpoint_host(endpoint: str) -> str:
+    hostname = urlsplit(endpoint).hostname
+    if hostname is None:  # pragma: no cover - persisted values pass endpoint validation
+        raise ProviderInputError("服务地址格式无效")
+    return _validated_public_host(hostname)
+
+
+def _validated_public_host(value: object) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value) > 253:
+        raise ProviderInputError("网络主机名无效")
+    raw = value.strip().rstrip(".").casefold()
+    try:
+        ipaddress.ip_address(raw)
+    except ValueError:
+        pass
+    else:
+        raise ProviderInputError("自定义 API 不允许使用 IP 地址")
+    try:
+        host = raw.encode("idna").decode("ascii")
+    except UnicodeError:
+        raise ProviderInputError("网络主机名无效") from None
+    if (
+        "." not in host
+        or host == "localhost"
+        or host.endswith(".local")
+        or "*" in host
+        or not all(
+            re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label)
+            for label in host.split(".")
+        )
+    ):
+        raise ProviderInputError("请使用公网 HTTPS 域名，不允许本机、局域网或通配符")
+    return host
 
 
 def _credential_ref(provider_id: str, credential_id: str) -> str:

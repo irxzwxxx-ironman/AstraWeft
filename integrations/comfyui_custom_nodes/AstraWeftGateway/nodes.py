@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 import time
 import urllib.error
 import urllib.request
@@ -14,6 +16,7 @@ from typing import Any
 _BASE_URL = "http://127.0.0.1:17493/api/v1"
 _SERVICE_NAME = "AstraWeft"
 _KEYRING_ACCOUNT = "loopback_gateway:access_token"
+_DEFAULT_TOKEN_FILE = Path.home() / ".astraweft" / "comfyui-gateway-token"
 
 
 class AstraWeftGatewayError(RuntimeError):
@@ -29,11 +32,12 @@ class AstraWeftProviderImage:
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, object]:
+        provider_ids, model_ids, operations = _catalog_choices("image.generate")
         return {
             "required": {
-                "provider_id": ("STRING", {"default": ""}),
-                "model_id": ("STRING", {"default": ""}),
-                "operation": ("STRING", {"default": "image.generate"}),
+                "provider_id": (provider_ids,),
+                "model_id": (model_ids,),
+                "operation": (operations,),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
                 "inputs_json": ("STRING", {"multiline": True, "default": "{}"}),
                 "timeout_seconds": ("INT", {"default": 300, "min": 1, "max": 86400}),
@@ -71,11 +75,12 @@ class AstraWeftProviderVideo:
 
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, object]:
+        provider_ids, model_ids, operations = _catalog_choices("video.generate")
         return {
             "required": {
-                "provider_id": ("STRING", {"default": ""}),
-                "model_id": ("STRING", {"default": ""}),
-                "operation": ("STRING", {"default": "video.generate"}),
+                "provider_id": (provider_ids,),
+                "model_id": (model_ids,),
+                "operation": (operations,),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
                 "inputs_json": ("STRING", {"multiline": True, "default": "{}"}),
                 "timeout_seconds": ("INT", {"default": 900, "min": 1, "max": 86400}),
@@ -103,6 +108,47 @@ class AstraWeftProviderVideo:
         return (str(_download_artifact(artifact, timeout_seconds)),)
 
 
+class AstraWeftProviderJSON:
+    """Invoke any configured gateway operation and return its normalized JSON output."""
+
+    CATEGORY = "AstraWeft"
+    FUNCTION = "invoke"
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("result_json",)
+    OUTPUT_NODE = False
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, object]:
+        provider_ids, model_ids, operations = _catalog_choices("custom.invoke")
+        return {
+            "required": {
+                "provider_id": (provider_ids,),
+                "model_id": (model_ids,),
+                "operation": (operations,),
+                "inputs_json": ("STRING", {"multiline": True, "default": "{}"}),
+                "timeout_seconds": ("INT", {"default": 300, "min": 1, "max": 86400}),
+            }
+        }
+
+    def invoke(
+        self,
+        provider_id: str,
+        model_id: str,
+        operation: str,
+        inputs_json: str,
+        timeout_seconds: int,
+    ) -> tuple[str]:
+        snapshot = _submit_and_wait(
+            provider_id,
+            model_id,
+            operation,
+            "",
+            inputs_json,
+            timeout_seconds,
+        )
+        return (json.dumps(snapshot.get("output"), ensure_ascii=False),)
+
+
 def _run_task(
     provider_id: str,
     model_id: str,
@@ -112,6 +158,39 @@ def _run_task(
     timeout_seconds: int,
     *,
     expected_kind: str,
+) -> dict[str, object]:
+    snapshot = _submit_and_wait(
+        provider_id,
+        model_id,
+        operation,
+        prompt,
+        inputs_json,
+        timeout_seconds,
+    )
+    task_id = snapshot.get("id")
+    if not isinstance(task_id, str):
+        raise AstraWeftGatewayError("AstraWeft 未返回任务编号")
+    artifacts = _json_request("GET", f"/tasks/{task_id}/artifacts", None, timeout=10).get(
+        "artifacts"
+    )
+    if not isinstance(artifacts, list):
+        raise AstraWeftGatewayError("AstraWeft 产物列表格式无效")
+    for artifact in artifacts:
+        if (
+            isinstance(artifact, dict)
+            and str(artifact.get("kind", "")).casefold() == expected_kind.casefold()
+        ):
+            return artifact
+    raise AstraWeftGatewayError(f"任务没有返回 {expected_kind} 产物")
+
+
+def _submit_and_wait(
+    provider_id: str,
+    model_id: str,
+    operation: str,
+    prompt: str,
+    inputs_json: str,
+    timeout_seconds: int,
 ) -> dict[str, object]:
     if not provider_id.strip() or not model_id.strip() or not operation.strip():
         raise AstraWeftGatewayError("Provider、模型与操作不能为空")
@@ -146,21 +225,10 @@ def _run_task(
         snapshot = _json_request("GET", f"/tasks/{task_id}", None, timeout=10)
         status = snapshot.get("status")
         if status == "SUCCESS":
-            artifacts = _json_request("GET", f"/tasks/{task_id}/artifacts", None, timeout=10).get(
-                "artifacts"
-            )
-            if not isinstance(artifacts, list):
-                break
-            for artifact in artifacts:
-                if (
-                    isinstance(artifact, dict)
-                    and str(artifact.get("kind", "")).casefold() == expected_kind.casefold()
-                ):
-                    return artifact
-            raise AstraWeftGatewayError(f"任务没有返回 {expected_kind} 产物")
+            return snapshot
         if status in {"FAILED", "CANCELED", "NEEDS_ATTENTION"}:
             raise AstraWeftGatewayError(f"AstraWeft 任务以 {status} 结束")
-        time.sleep(0.5)
+        time.sleep(1.0)
     with suppress(AstraWeftGatewayError):
         _json_request("POST", f"/tasks/{task_id}/cancel", {}, timeout=5)
     raise AstraWeftGatewayError("等待 AstraWeft 任务超时")
@@ -230,16 +298,70 @@ def _json_request(
 
 
 def _gateway_token() -> str:
+    environment_token = os.environ.get("ASTRAWEFT_GATEWAY_TOKEN", "").strip()
+    if environment_token:
+        return environment_token
     try:
         import keyring
-    except ImportError as exc:
-        raise AstraWeftGatewayError(
-            "ComfyUI 环境缺少 keyring；请安装 keyring 后重启 ComfyUI"
-        ) from exc
-    token = keyring.get_password(_SERVICE_NAME, _KEYRING_ACCOUNT)
-    if not token:
-        raise AstraWeftGatewayError("未找到 AstraWeft 本机网关令牌；请先启动 AstraWeft")
+    except ImportError:
+        pass
+    else:
+        try:
+            token = keyring.get_password(_SERVICE_NAME, _KEYRING_ACCOUNT)
+        except Exception:
+            token = None
+        if token:
+            return token
+    configured_path = os.environ.get("ASTRAWEFT_GATEWAY_TOKEN_FILE", "").strip()
+    token_path = Path(configured_path).expanduser() if configured_path else _DEFAULT_TOKEN_FILE
+    try:
+        metadata = token_path.stat()
+        if not stat.S_ISREG(metadata.st_mode):
+            raise AstraWeftGatewayError("AstraWeft 本机网关令牌路径不安全")
+        if os.name != "nt" and stat.S_IMODE(metadata.st_mode) & 0o077:
+            raise AstraWeftGatewayError("AstraWeft 本机网关令牌权限不安全")
+        token = token_path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise AstraWeftGatewayError("未找到 AstraWeft 本机网关令牌；请先启动 AstraWeft") from exc
+    if not token or len(token) > 4096:
+        raise AstraWeftGatewayError("AstraWeft 本机网关令牌无效")
     return token
+
+
+def _catalog_choices(default_operation: str) -> tuple[list[str], list[str], list[str]]:
+    """Populate ComfyUI dropdowns without exposing third-party credentials."""
+    try:
+        catalog = _json_request("GET", "/catalog", None, timeout=3)
+    except AstraWeftGatewayError:
+        return [""], [""], [default_operation]
+    providers = catalog.get("providers")
+    models = catalog.get("models")
+    provider_ids = (
+        sorted(
+            {
+                str(item["id"])
+                for item in providers
+                if isinstance(item, dict) and item.get("enabled") is True
+            }
+        )
+        if isinstance(providers, list)
+        else []
+    )
+    model_ids: list[str] = []
+    operations = {default_operation}
+    if isinstance(models, list):
+        for model in models:
+            if not isinstance(model, dict) or model.get("enabled") is not True:
+                continue
+            model_id = model.get("id")
+            if isinstance(model_id, str):
+                model_ids.append(model_id)
+            configured_operations = model.get("operations")
+            if isinstance(configured_operations, list):
+                operations.update(
+                    item for item in configured_operations if isinstance(item, str) and item
+                )
+    return provider_ids or [""], sorted(set(model_ids)) or [""], sorted(operations)
 
 
 def _load_image_tensor(path: Path) -> Any:

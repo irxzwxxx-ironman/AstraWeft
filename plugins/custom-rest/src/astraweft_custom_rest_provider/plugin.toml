@@ -1,0 +1,28 @@
+manifest_version = 1
+plugin_id = "dev.astraweft.custom-rest-provider"
+name = "Custom REST / JSON"
+version = "0.1.0.dev0"
+plugin_api = ">=1.0,<2.0"
+python = ">=3.12,<3.14"
+entry_point = "astraweft_custom_rest_provider.plugin:CustomRestProviderPlugin"
+description = "Configure multiple arbitrary HTTPS JSON APIs behind the AstraWeft ComfyUI gateway"
+homepage = "https://github.com/astraweft"
+license = "Apache-2.0"
+
+[publisher]
+name = "AstraWeft Contributors"
+url = "https://github.com/astraweft"
+
+[permissions]
+network = []
+filesystem = "none"
+subprocess = false
+user_configured_endpoint = true
+additional_network_hosts_setting = "additional_allowed_hosts"
+
+[capabilities]
+operations = ["text.generate", "image.generate", "video.generate", "audio.generate", "custom.invoke"]
+async_tasks = true
+cancel = true
+model_discovery = true
+usage = true

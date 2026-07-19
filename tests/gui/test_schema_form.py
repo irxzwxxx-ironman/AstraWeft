@@ -48,6 +48,16 @@ def _openai_record() -> PluginRecord:
     )
 
 
+def _custom_rest_record() -> PluginRecord:
+    registry = EntryPointProviderRegistry()
+    return next(
+        record
+        for record in registry.discover()
+        if record.descriptor is not None
+        and record.descriptor.plugin_id == "dev.astraweft.custom-rest-provider"
+    )
+
+
 @pytest.mark.gui
 def test_schema_form_renders_defaults_and_typed_values(qtbot: QtBot) -> None:
     descriptor = _mock_record().descriptor
@@ -164,6 +174,27 @@ def test_openai_dialog_stays_local_without_key_and_locks_official_endpoint(qtbot
     assert command.endpoint == "https://api.openai.com/v1"
 
 
+@pytest.mark.gui
+def test_custom_rest_dialog_requires_endpoint_and_returns_typed_definition(qtbot: QtBot) -> None:
+    dialog = ProviderDialog((_custom_rest_record(),))
+    qtbot.addWidget(dialog)
+    endpoint = next(
+        field for field in dialog.findChildren(QLineEdit) if field.accessibleName() == "服务地址"
+    )
+
+    dialog.accept()
+    assert dialog.result() != QDialog.DialogCode.Accepted
+    endpoint.setText("https://api.example.test/v1")
+    dialog.accept()
+    command = dialog.create_command()
+
+    assert dialog.result() == QDialog.DialogCode.Accepted
+    assert command.endpoint == "https://api.example.test/v1"
+    assert isinstance(command.settings["definition"], dict)
+    assert isinstance(command.settings["additional_allowed_hosts"], list)
+    assert command.credentials == {}
+
+
 def test_core_presentation_has_no_mock_plugin_id_branch() -> None:
     source_root = Path(__file__).parents[2] / "src/astraweft"
     source = "\n".join(path.read_text(encoding="utf-8") for path in source_root.rglob("*.py"))
@@ -225,6 +256,39 @@ def test_schema_form_supports_all_primitive_widgets_and_initial_values(qtbot: Qt
         form.values()
     with pytest.raises(SchemaFormError, match="未知表单控件"):
         _field_value(QWidget())
+
+
+@pytest.mark.gui
+def test_schema_form_edits_typed_object_and_array_json(qtbot: QtBot) -> None:
+    form = SchemaForm(
+        {
+            "type": "object",
+            "properties": {
+                "definition": {"type": "object", "default": {"models": []}},
+                "hosts": {"type": "array", "items": {"type": "string"}, "default": []},
+            },
+            "required": ["definition", "hosts"],
+            "additionalProperties": False,
+        },
+        {
+            "definition": {"ui:widget": "json"},
+            "hosts": {"ui:widget": "json"},
+        },
+        initial={"definition": {"models": [{"id": "one"}]}, "hosts": ["a.example"]},
+    )
+    qtbot.addWidget(form)
+    editors = {item.accessibleName(): item for item in form.findChildren(QPlainTextEdit)}
+
+    assert form.values() == {
+        "definition": {"models": [{"id": "one"}]},
+        "hosts": ["a.example"],
+    }
+    editors["definition"].setPlainText('{"models": [}')
+    with pytest.raises(SchemaFormError, match="JSON 配置无效"):
+        form.values()
+    editors["definition"].setPlainText("[]")
+    with pytest.raises(SchemaFormError, match="顶层类型"):
+        form.values()
 
 
 @pytest.mark.gui

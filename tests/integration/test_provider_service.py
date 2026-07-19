@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import sqlite3
 from pathlib import Path
 
@@ -20,9 +21,11 @@ from astraweft.domain.provider import ProviderHealth
 from astraweft.infrastructure.secrets.store import SessionSecretStore
 from astraweft.ports.secrets import SecretNotFoundError, SecretValue
 from astraweft.ports.unit_of_work import PostCommitDispatchError
+from astraweft_custom_rest_provider.schemas import STARTER_DEFINITION
 
 _PLUGIN_ID = "dev.astraweft.mock-provider"
 _CANARY = "mock-valid-key"
+_CUSTOM_PLUGIN_ID = "dev.astraweft.custom-rest-provider"
 
 
 class PersistentMemorySecrets(SessionSecretStore):
@@ -266,5 +269,67 @@ async def test_execution_resolution_enforces_new_task_availability(
             await context.provider_service.resolve_execution(
                 provider.id, image_model.id, "image.generate"
             )
+    finally:
+        await context.close()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_custom_rest_endpoint_grants_only_configured_public_hosts(
+    tmp_path: Path,
+) -> None:
+    context = await build_app_context(tmp_path, secret_store_override=SessionSecretStore())
+    settings = {
+        "auth_mode": "bearer",
+        "auth_header_name": "X-API-Key",
+        "auth_prefix": "",
+        "request_timeout_seconds": 30,
+        "additional_allowed_hosts": ["assets.example.test"],
+        "definition": copy.deepcopy(STARTER_DEFINITION),
+    }
+    try:
+        with pytest.raises(ProviderInputError, match="HTTPS"):
+            await context.provider_service.create(
+                CreateProvider(
+                    plugin_id=_CUSTOM_PLUGIN_ID,
+                    name="Unsafe HTTP",
+                    settings=settings,
+                    credentials={"api_key": SecretValue("custom-key")},
+                    endpoint="http://api.example.test/v1",
+                )
+            )
+        with pytest.raises(ProviderInputError, match="IP"):
+            await context.provider_service.create(
+                CreateProvider(
+                    plugin_id=_CUSTOM_PLUGIN_ID,
+                    name="Unsafe IP",
+                    settings=settings,
+                    credentials={"api_key": SecretValue("custom-key")},
+                    endpoint="https://127.0.0.1/v1",
+                )
+            )
+        provider = await context.provider_service.create(
+            CreateProvider(
+                plugin_id=_CUSTOM_PLUGIN_ID,
+                name="Custom Gateway API",
+                settings=settings,
+                credentials={"api_key": SecretValue("custom-key")},
+                endpoint="https://API.Example.Test/v1/",
+            )
+        )
+        models = await context.provider_service.sync_models(provider.id)
+        execution = await context.provider_service.resolve_execution(
+            provider.id,
+            models[0].id,
+            "image.generate",
+        )
+        try:
+            assert provider.endpoint == "https://api.example.test/v1"
+            assert execution.allowed_network == (
+                "api.example.test",
+                "assets.example.test",
+            )
+        finally:
+            await execution.close()
     finally:
         await context.close()

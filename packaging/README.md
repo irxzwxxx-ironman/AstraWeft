@@ -33,7 +33,7 @@ payload must pass the same verification before the archive is accepted.
 
 ## Complete local release gate
 
-The composite gate rebuilds all five wheels in isolation, validates their metadata and contents,
+The composite gate rebuilds all six wheels in isolation, validates their metadata and contents,
 installs a runtime-only environment, rebuilds the desktop package, exercises cold start and database
 upgrade/rollback, then regenerates SBOM, license, provenance, and vulnerability evidence:
 
@@ -74,7 +74,7 @@ stapled bytes and replaces the native archive. Only that final archive is promot
 
 `.github/workflows/release-candidate.yml` runs the complete gate independently on macOS, Windows,
 and Linux when manually dispatched or when a `v*-beta.*` / `v*-rc.*` tag is pushed. Each successful
-job uploads the verified native archive, checksum, five wheels, cold-start and upgrade reports,
+job uploads the verified native archive, checksum, six wheels, cold-start and upgrade reports,
 SBOM, license inventory, and vulnerability evidence. These are unsigned candidate artifacts; they
 must not be promoted as public Beta installers until the platform signing and clean-machine gates
 also pass.

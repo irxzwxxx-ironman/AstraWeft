@@ -54,4 +54,9 @@ class PluginPreferenceStore(Protocol):
 
 
 class ProviderContextFactory(Protocol):
-    def __call__(self, plugin_id: str, allowed_network: tuple[str, ...]) -> ProviderContext: ...
+    def __call__(
+        self,
+        plugin_id: str,
+        allowed_network: tuple[str, ...],
+        endpoint: str | None,
+    ) -> ProviderContext: ...

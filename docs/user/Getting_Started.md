@@ -45,6 +45,9 @@ Mock Provider 不访问网络，也不会产生费用，适合验证安装是否
 ## 3. 配置真实 Provider
 
 - OpenAI 和 Runway 插件需要各自服务签发的 API Key。
+- 其他 JSON API 选择 **Custom REST / JSON**，填写第三方 HTTPS 基础地址、
+  鉴权方式、Key 和 API 转发定义。一个 Provider 可同时定义多个模型和
+  多个 operation，包括独立的提交、查询进度和取消接口。
 - 只在 Provider 配置窗口输入密钥；不要把密钥写进工作流、提示词、日志或诊断备注。
 - “连接测试”成功后再同步模型。模型能力、参数 Schema 和价格元数据均由插件提供。
 - 成本页只汇总 Provider 明确返回的已知价格；未知成本不会显示为零。
@@ -58,7 +61,9 @@ Mock Provider 不访问网络，也不会产生费用，适合验证安装是否
 - 发布前会验证 DAG、端口类型、必填输入和 Provider/模型引用。
 - ComfyUI 页面可登记本地实例、测试能力并导入 API workflow 模板。
 - `extras/AstraWeftGateway` 可复制到 ComfyUI 的 `custom_nodes` 目录。重启 ComfyUI 后使用
-  AstraWeft Provider Image/Video 节点。
+  AstraWeft Provider Image/Video/JSON 节点。JSON 节点可调用任意已配置 operation。
+- ComfyUI 始终请求 `127.0.0.1:17493/api/v1`；AstraWeft 再按 Provider、模型和
+  operation 把请求分别转发到多个第三方接口。
 - 网关 Token 由操作系统凭据存储管理；不要把 Token 写入 workflow JSON 或公开截图。
 
 ## 5. 备份与诊断
@@ -82,3 +87,6 @@ Mock Provider 不访问网络，也不会产生费用，适合验证安装是否
 语言、主题、减少动态效果和系统通知偏好会原子保存到本机设置文件。
 
 遇到问题时参阅 [故障排查](./Troubleshooting.md)。
+
+Custom REST 完整字段和同步/异步示例见
+[自定义 REST Provider 设计](../provider-adapters/Custom_REST_Provider_Design.md)。

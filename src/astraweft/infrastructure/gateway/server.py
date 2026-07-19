@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import secrets
 import time
 from collections import deque
@@ -20,7 +21,7 @@ from astraweft.ports.secrets import SecretNotFoundError, SecretStore, SecretValu
 _CREDENTIAL_REF = "loopback_gateway"
 _CREDENTIAL_FIELD = "access_token"
 _MAX_BODY_BYTES = 256 * 1024
-_DEFAULT_RATE_LIMIT = 120
+_DEFAULT_RATE_LIMIT = 600
 
 Handler = Callable[[web.Request], Awaitable[web.StreamResponse]]
 
@@ -38,6 +39,7 @@ class LoopbackGateway:
         host: str = "127.0.0.1",
         port: int = 17493,
         rate_limit_per_minute: int = _DEFAULT_RATE_LIMIT,
+        token_handoff_path: Path | None = None,
     ) -> None:
         if host != "127.0.0.1":
             raise ValueError("loopback gateway must bind to 127.0.0.1")
@@ -50,6 +52,7 @@ class LoopbackGateway:
         self._host = host
         self._port = port
         self._rate_limit = rate_limit_per_minute
+        self._token_handoff_path = token_handoff_path
         self._requests: deque[float] = deque()
         self._rate_lock = asyncio.Lock()
         self._token: SecretValue | None = None
@@ -89,8 +92,10 @@ class LoopbackGateway:
             await runner.setup()
             site = web.TCPSite(runner, self._host, self._port)
             await site.start()
+            self._publish_token_handoff(self._token)
         except Exception:
             await runner.cleanup()
+            self._remove_token_handoff()
             raise
         self._runner = runner
         self._site = site
@@ -105,6 +110,7 @@ class LoopbackGateway:
         self._requests.clear()
         if runner is not None:
             await runner.cleanup()
+        self._remove_token_handoff()
 
     @web.middleware
     async def _security_middleware(
@@ -167,6 +173,41 @@ class LoopbackGateway:
             value = SecretValue(secrets.token_urlsafe(32))
             await self._secrets.set(_CREDENTIAL_REF, _CREDENTIAL_FIELD, value)
             return value
+
+    def _publish_token_handoff(self, token: SecretValue) -> None:
+        """Publish a same-user, process-lifetime credential for local ComfyUI."""
+        target = self._token_handoff_path
+        if target is None:
+            return
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        if os.name != "nt":
+            target.parent.chmod(0o700)
+        temporary = target.with_name(f".{target.name}.{secrets.token_hex(8)}.tmp")
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        descriptor = os.open(temporary, flags, 0o600)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                stream.write(token.reveal())
+                stream.flush()
+                os.fsync(stream.fileno())
+            temporary.replace(target)
+            if os.name != "nt":
+                target.chmod(0o600)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def _remove_token_handoff(self) -> None:
+        target = self._token_handoff_path
+        token = self._token
+        if target is None or token is None:
+            return
+        try:
+            if target.read_text(encoding="utf-8") == token.reveal():
+                target.unlink(missing_ok=True)
+        except OSError:
+            return
 
     async def _health(self, _request: web.Request) -> web.Response:
         return web.json_response({"status": "ok", "api": "astraweft.loopback/v1"})
@@ -271,6 +312,7 @@ def _task_payload(task: Task) -> dict[str, object]:
         "status": task.status.value,
         "progress": task.progress,
         "operation": task.operation,
+        "output": _plain_json(task.normalized_output) if task.status.value == "SUCCESS" else None,
         "error": None
         if task.status.value not in {"FAILED", "NEEDS_ATTENTION"}
         else {"code": "task_failed", "message": "任务未成功完成"},

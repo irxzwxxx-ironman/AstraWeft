@@ -14,6 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = PROJECT_ROOT / "build" / "phase8" / "release-evidence"
 FIRST_PARTY = {
     "astraweft",
+    "astraweft-custom-rest-provider",
     "astraweft-mock-provider",
     "astraweft-openai-provider",
     "astraweft-provider-sdk",

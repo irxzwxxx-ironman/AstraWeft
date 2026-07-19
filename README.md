@@ -27,7 +27,7 @@ desktop bundle, isolated cold-start and upgrade/rollback smokes, wheel validatio
 inventory, a zero-known-vulnerability runtime audit, independently verified payload manifests, and
 an archivable three-platform release-candidate workflow. Remote native CI evidence, platform signing,
 clean-machine validation and native Windows/Linux execution remain open. AstraWeft runs Mock,
-OpenAI, Runway and ComfyUI work through durable local ledgers, keeps credentials in the OS keyring
+OpenAI, Runway, fully custom REST/JSON APIs and ComfyUI through durable local ledgers, keeps credentials in the OS keyring
 when available with a session-only safe fallback, and exposes Provider tasks to ComfyUI through a
 token-protected `127.0.0.1` gateway. Release hardening is tracked in Phase 8 of the
 [product roadmap](docs/Product_Implementation_Roadmap.md).
@@ -41,6 +41,7 @@ token-protected `127.0.0.1` gateway. Release hardening is tracked in Phase 8 of 
 - [Database ER design](docs/Local_AI_Workflow_Manager_Database_ER_Design.md)
 - [GUI prototype design](docs/Local_AI_Workflow_Manager_GUI_Prototype_Design.md)
 - [Provider plugin specification](docs/Local_AI_Workflow_Manager_Provider_Plugin_Interface_Spec.md)
+- [Custom REST Provider configuration](docs/provider-adapters/Custom_REST_Provider_Design.md)
 - [Architecture decision records](docs/adr/README.md)
 - [Phase 1 local gate report](docs/phase-reports/Phase_1_Local_Runnable_Foundation.md)
 - [Phase 2 local gate report](docs/phase-reports/Phase_2_Provider_Model_Loop.md)

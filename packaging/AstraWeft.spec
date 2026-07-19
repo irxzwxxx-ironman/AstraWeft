@@ -12,6 +12,7 @@ ROOT = Path(SPECPATH).resolve().parent
 SOURCE_ROOTS = (
     ROOT / "src",
     ROOT / "packages" / "provider-sdk" / "src",
+    ROOT / "plugins" / "custom-rest" / "src",
     ROOT / "plugins" / "mock" / "src",
     ROOT / "plugins" / "openai" / "src",
     ROOT / "plugins" / "runway" / "src",
@@ -19,12 +20,14 @@ SOURCE_ROOTS = (
 
 DISTRIBUTIONS = (
     "astraweft",
+    "astraweft-custom-rest-provider",
     "astraweft-provider-sdk",
     "astraweft-mock-provider",
     "astraweft-openai-provider",
     "astraweft-runway-provider",
 )
 PLUGIN_PACKAGES = (
+    "astraweft_custom_rest_provider",
     "astraweft_mock_provider",
     "astraweft_openai_provider",
     "astraweft_runway_provider",

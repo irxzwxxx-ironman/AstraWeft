@@ -48,6 +48,7 @@ astraweft = "astraweft.__main__:main"
 
 [dependency-groups]
 dev = [
+  "astraweft-custom-rest-provider>=0.1.0.dev0",
   "astraweft-mock-provider>=0.1.0.dev0",
   "astraweft-openai-provider>=0.1.0.dev0",
   "astraweft-runway-provider>=0.1.0.dev0",
@@ -71,13 +72,14 @@ release = [
 ]
 
 [tool.uv.sources]
+astraweft-custom-rest-provider = { workspace = true }
 astraweft-provider-sdk = { workspace = true }
 astraweft-mock-provider = { workspace = true }
 astraweft-openai-provider = { workspace = true }
 astraweft-runway-provider = { workspace = true }
 
 [tool.uv.workspace]
-members = ["packages/provider-sdk", "plugins/mock", "plugins/openai", "plugins/runway"]
+members = ["packages/provider-sdk", "plugins/custom-rest", "plugins/mock", "plugins/openai", "plugins/runway"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/astraweft"]
@@ -102,7 +104,7 @@ include = [
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["src", "tests", "packages/provider-sdk/src", "plugins/mock/src", "plugins/openai/src", "plugins/runway/src"]
+src = ["src", "tests", "packages/provider-sdk/src", "plugins/custom-rest/src", "plugins/mock/src", "plugins/openai/src", "plugins/runway/src"]
 extend-exclude = [".idea", "build", "dist"]
 
 [tool.ruff.lint]
@@ -133,7 +135,7 @@ select = [
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["src", "tests", "packages/provider-sdk/src", "packages/provider-sdk/tests", "plugins/mock/src", "plugins/mock/tests", "plugins/openai/src", "plugins/openai/tests", "plugins/runway/src", "plugins/runway/tests"]
+files = ["src", "tests", "packages/provider-sdk/src", "packages/provider-sdk/tests", "plugins/custom-rest/src", "plugins/custom-rest/tests", "plugins/mock/src", "plugins/mock/tests", "plugins/openai/src", "plugins/openai/tests", "plugins/runway/src", "plugins/runway/tests"]
 pretty = true
 show_error_codes = true
 warn_unreachable = true
@@ -150,7 +152,7 @@ addopts = [
   "--strict-markers",
   "-ra",
 ]
-testpaths = ["tests", "packages/provider-sdk/tests", "plugins/mock/tests", "plugins/openai/tests", "plugins/runway/tests"]
+testpaths = ["tests", "packages/provider-sdk/tests", "plugins/custom-rest/tests", "plugins/mock/tests", "plugins/openai/tests", "plugins/runway/tests"]
 markers = [
   "contract: provider and external-boundary contract tests",
   "gui: tests requiring a Qt application",
@@ -162,7 +164,7 @@ qt_api = "pyside6"
 
 [tool.coverage.run]
 branch = true
-source = ["astraweft", "astraweft_provider_sdk", "astraweft_mock_provider", "astraweft_openai_provider", "astraweft_runway_provider"]
+source = ["astraweft", "astraweft_provider_sdk", "astraweft_custom_rest_provider", "astraweft_mock_provider", "astraweft_openai_provider", "astraweft_runway_provider"]
 
 [tool.coverage.report]
 fail_under = 90
@@ -176,7 +178,7 @@ exclude_also = [
 ]
 
 [tool.importlinter]
-root_packages = ["astraweft", "astraweft_provider_sdk", "astraweft_mock_provider", "astraweft_openai_provider", "astraweft_runway_provider"]
+root_packages = ["astraweft", "astraweft_provider_sdk", "astraweft_custom_rest_provider", "astraweft_mock_provider", "astraweft_openai_provider", "astraweft_runway_provider"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -196,9 +198,22 @@ type = "forbidden"
 source_modules = ["astraweft_provider_sdk"]
 forbidden_modules = [
   "astraweft",
+  "astraweft_custom_rest_provider",
   "astraweft_mock_provider",
   "PySide6",
   "sqlalchemy",
+]
+
+[[tool.importlinter.contracts]]
+name = "Custom REST Provider depends only on the public SDK"
+type = "forbidden"
+source_modules = ["astraweft_custom_rest_provider"]
+forbidden_modules = [
+  "astraweft",
+  "PySide6",
+  "sqlalchemy",
+  "keyring",
+  "httpx",
 ]
 
 [[tool.importlinter.contracts]]

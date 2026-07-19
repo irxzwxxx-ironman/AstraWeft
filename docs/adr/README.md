@@ -29,6 +29,7 @@ Accepted ADR 不直接重写。需要改变时新增 ADR，在新文档中引用
 | [011](./ADR-011_Immutable_Workflow_Versions_and_Durable_Node_Intent.md) | 不可变 WorkflowVersion 与持久 Node 执行意图 | Accepted |
 | [012](./ADR-012_ComfyUI_Execution_Adapter_and_Loopback_Gateway.md) | ComfyUI 独立执行适配器与最小权限 Loopback Gateway | Accepted |
 | [013](./ADR-013_Staged_Local_Data_Maintenance.md) | 分阶段本地数据维护与可恢复删除 | Accepted |
+| [014](./ADR-014_User_Configured_REST_Provider.md) | 用户配置 REST Provider 与动态网络权限 | Accepted |
 
 ## 模板
 

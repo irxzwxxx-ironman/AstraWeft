@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import os
 import time
 from collections import deque
 from pathlib import Path
@@ -33,6 +34,36 @@ def _custom_nodes_module() -> Any:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_custom_node_builds_dropdowns_from_gateway_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    custom_nodes = _custom_nodes_module()
+    monkeypatch.setattr(
+        custom_nodes,
+        "_json_request",
+        lambda *_args, **_kwargs: {
+            "providers": [
+                {"id": "provider-b", "enabled": False},
+                {"id": "provider-a", "enabled": True},
+            ],
+            "models": [
+                {
+                    "id": "model-a",
+                    "enabled": True,
+                    "operations": ["image.generate", "custom.invoke"],
+                },
+                {"id": "model-b", "enabled": False, "operations": ["ignored"]},
+            ],
+        },
+    )
+
+    providers, models, operations = custom_nodes._catalog_choices("image.generate")
+
+    assert providers == ["provider-a"]
+    assert models == ["model-a"]
+    assert operations == ["custom.invoke", "image.generate"]
 
 
 @pytest.mark.integration
@@ -154,6 +185,40 @@ async def test_gateway_enforces_authenticated_rate_limit(tmp_path: Path) -> None
     finally:
         await gateway.stop()
         await context.close()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_gateway_publishes_same_user_token_for_comfyui(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    custom_nodes = _custom_nodes_module()
+    secret_store = SessionSecretStore()
+    context = await build_app_context(tmp_path, secret_store_override=secret_store)
+    token_path = tmp_path / "handoff" / "gateway-token"
+    gateway = LoopbackGateway(
+        tasks=context.task_service,
+        providers=context.provider_service,
+        secrets_store=secret_store,
+        artifact_root=context.paths.artifact_dir,
+        port=0,
+        token_handoff_path=token_path,
+    )
+    monkeypatch.setenv("ASTRAWEFT_GATEWAY_TOKEN_FILE", str(token_path))
+    monkeypatch.delenv("ASTRAWEFT_GATEWAY_TOKEN", raising=False)
+    monkeypatch.setattr(custom_nodes, "_SERVICE_NAME", "AstraWeft-test-no-keyring-token")
+    try:
+        await gateway.start()
+        expected = (await secret_store.get("loopback_gateway", "access_token")).reveal()
+        assert token_path.read_text(encoding="utf-8") == expected
+        if os.name != "nt":
+            assert token_path.stat().st_mode & 0o077 == 0
+        assert custom_nodes._gateway_token() == expected
+    finally:
+        await gateway.stop()
+        await context.close()
+    assert not token_path.exists()
 
 
 @pytest.mark.integration
@@ -283,11 +348,9 @@ async def test_custom_node_calls_mock_provider_and_downloads_artifact(
                 credentials={"api_key": SecretValue("mock-valid-key")},
             )
         )
-        model = next(
-            item
-            for item in await context.provider_service.sync_models(provider.id)
-            if item.remote_model_id == "mock-image-v1"
-        )
+        models = await context.provider_service.sync_models(provider.id)
+        model = next(item for item in models if item.remote_model_id == "mock-image-v1")
+        text_model = next(item for item in models if item.remote_model_id == "mock-text-v1")
         context.task_runtime.start()
         await gateway.start()
         token = (await secret_store.get("loopback_gateway", "access_token")).reveal()
@@ -311,6 +374,20 @@ async def test_custom_node_calls_mock_provider_and_downloads_artifact(
         assert artifact["kind"] == "IMAGE"
         downloaded = await asyncio.to_thread(custom_nodes._download_artifact, artifact, 10)
         assert downloaded.read_bytes() == b"mock-image-artifact"
+        snapshot = await asyncio.to_thread(
+            custom_nodes._submit_and_wait,
+            provider.id,
+            text_model.id,
+            "text.generate",
+            "",
+            '{"prompt": "generic json"}',
+            10,
+        )
+        output = snapshot["output"]
+        assert isinstance(output, dict)
+        data = output["data"]
+        assert isinstance(data, dict)
+        assert data["text"] == "Mock response"
     finally:
         await gateway.stop()
         await context.close()

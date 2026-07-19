@@ -5,6 +5,7 @@ requires-python = ">=3.12, <3.14"
 [manifest]
 members = [
     "astraweft",
+    "astraweft-custom-rest-provider",
     "astraweft-mock-provider",
     "astraweft-openai-provider",
     "astraweft-provider-sdk",
@@ -181,6 +182,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "astraweft-custom-rest-provider" },
     { name = "astraweft-mock-provider" },
     { name = "astraweft-openai-provider" },
     { name = "astraweft-runway-provider" },
@@ -222,6 +224,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "astraweft-custom-rest-provider", editable = "plugins/custom-rest" },
     { name = "astraweft-mock-provider", editable = "plugins/mock" },
     { name = "astraweft-openai-provider", editable = "plugins/openai" },
     { name = "astraweft-runway-provider", editable = "plugins/runway" },
@@ -243,6 +246,17 @@ release = [
     { name = "cyclonedx-bom", specifier = ">=7.3,<8" },
     { name = "pyinstaller", specifier = ">=6.21,<7" },
 ]
+
+[[package]]
+name = "astraweft-custom-rest-provider"
+version = "0.1.0.dev0"
+source = { editable = "plugins/custom-rest" }
+dependencies = [
+    { name = "astraweft-provider-sdk" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "astraweft-provider-sdk", editable = "packages/provider-sdk" }]
 
 [[package]]
 name = "astraweft-mock-provider"

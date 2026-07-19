@@ -34,6 +34,8 @@ class PluginPermissions:
     network: tuple[str, ...] = ()
     filesystem: Literal["none", "plugin_data"] = "none"
     subprocess: bool = False
+    user_configured_endpoint: bool = False
+    additional_network_hosts_setting: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +112,12 @@ def load_manifest(path: Path) -> PluginManifest:
                 network=tuple(_string_list(permissions, "network")),
                 filesystem=_filesystem_permission(permissions.get("filesystem", "none")),
                 subprocess=_boolean(permissions, "subprocess"),
+                user_configured_endpoint=_optional_boolean(
+                    permissions, "user_configured_endpoint", False
+                ),
+                additional_network_hosts_setting=_optional_string(
+                    permissions, "additional_network_hosts_setting"
+                ),
             ),
             capabilities=ManifestCapabilities(
                 operations=frozenset(_string_list(capabilities, "operations")),
@@ -135,6 +143,9 @@ def _validate_manifest(manifest: PluginManifest) -> None:
         raise ManifestError("entry_point must be module:attribute")
     if not manifest.capabilities.operations:
         raise ManifestError("plugin must declare at least one operation")
+    setting = manifest.permissions.additional_network_hosts_setting
+    if setting is not None and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", setting):
+        raise ManifestError("additional network hosts setting must be a safe field name")
     try:
         Version(manifest.version)
     except InvalidVersion as exc:
@@ -174,6 +185,13 @@ def _integer(data: Mapping[str, object], key: str) -> int:
 
 def _boolean(data: Mapping[str, object], key: str) -> bool:
     value = data[key]
+    if not isinstance(value, bool):
+        raise TypeError(f"{key} must be a boolean")
+    return value
+
+
+def _optional_boolean(data: Mapping[str, object], key: str, default: bool) -> bool:
+    value = data.get(key, default)
     if not isinstance(value, bool):
         raise TypeError(f"{key} must be a boolean")
     return value

@@ -71,6 +71,7 @@ def build_provider_context(
     plugin_api_version: str,
     http_client: CoreHttpClient,
     allowed_network: tuple[str, ...],
+    endpoint: str | None = None,
 ) -> ProviderContext:
     readable = plugin_id.replace(".", "_").replace("-", "_")[:64]
     suffix = hashlib.sha256(plugin_id.encode()).hexdigest()[:12]
@@ -83,6 +84,7 @@ def build_provider_context(
         plugin_data=RestrictedPluginDataDirectory(plugin_data_root / safe_directory),
         core_version=core_version,
         plugin_api_version=plugin_api_version,
+        endpoint=endpoint,
     )
 
 
@@ -95,7 +97,12 @@ class CoreProviderContextFactory:
     plugin_api_version: str
     http_client: CoreHttpClient
 
-    def __call__(self, plugin_id: str, allowed_network: tuple[str, ...]) -> ProviderContext:
+    def __call__(
+        self,
+        plugin_id: str,
+        allowed_network: tuple[str, ...],
+        endpoint: str | None,
+    ) -> ProviderContext:
         return build_provider_context(
             plugin_id=plugin_id,
             secret_store=self.secret_store,
@@ -105,4 +112,5 @@ class CoreProviderContextFactory:
             plugin_api_version=self.plugin_api_version,
             http_client=self.http_client,
             allowed_network=allowed_network,
+            endpoint=endpoint,
         )
